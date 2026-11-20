@@ -23,7 +23,7 @@ require_once(dirname(__FILE__) . '/lib/Chart.php');
 
 class tabcalorie extends module
 {
-    const VERSION = '1.1.0';
+    const VERSION = '1.2.0';
 
     function tabcalorie()
     {
@@ -79,6 +79,10 @@ class tabcalorie extends module
             'FAT_TARGET'        => 60,
             'MEAL_NORM_SHARE'   => 25,
             'CSV_DELIMITER'     => ';',
+            'ACTIVITY_ENABLED'  => 1,
+            'LOG_RETENTION_DAYS' => 30,
+            'LOG_MAX_ROWS'      => 2000,
+            'WRITE_QUEUE_TTL_DAYS' => 7,
             'WRITEBACK_ENABLED' => 0,
             'WRITEBACK_CONFIRM' => 1,
             'NS_ENABLED'        => 0,
@@ -116,6 +120,13 @@ class tabcalorie extends module
         if (!(int)$has['N']) {
             @SQLExec("CREATE UNIQUE INDEX UQ_TC_ENTRY ON tabcalorie_entries (ENTRY_KEY(64))");
         }
+        $hasAct = SQLSelectOne("SELECT COUNT(*) AS N FROM information_schema.STATISTICS
+                                WHERE TABLE_SCHEMA=DATABASE()
+                                AND TABLE_NAME='tabcalorie_activities'
+                                AND INDEX_NAME='UQ_TC_ACTIVITY'");
+        if (!(int)$hasAct['N']) {
+            @SQLExec("CREATE UNIQUE INDEX UQ_TC_ACTIVITY ON tabcalorie_activities (ACTIVITY_KEY(64))");
+        }
         self::ensureObject();
     }
 
@@ -129,6 +140,7 @@ tabcalorie_entries: SLOT_ID int(11) NOT NULL DEFAULT '0'
 tabcalorie_entries: SLOT_TITLE varchar(255) NOT NULL DEFAULT ''
 tabcalorie_entries: TITLE varchar(255) NOT NULL DEFAULT ''
 tabcalorie_entries: FOOD_GUID varchar(64) NOT NULL DEFAULT ''
+tabcalorie_entries: FOOD_URL varchar(255) NOT NULL DEFAULT ''
 tabcalorie_entries: UNIT_RAW varchar(64) NOT NULL DEFAULT ''
 tabcalorie_entries: QUANTITY float NOT NULL DEFAULT '0'
 tabcalorie_entries: UNIT varchar(32) NOT NULL DEFAULT ''
@@ -144,8 +156,15 @@ tabcalorie_entries: KEY IDX_TC_ENTRY_DATE (ENTRY_DATE)
 tabcalorie_entries: KEY IDX_TC_ENTRY_GUID (FOOD_GUID)
 tabcalorie_foods: ID int(10) unsigned NOT NULL auto_increment
 tabcalorie_foods: FOOD_GUID varchar(64) NOT NULL DEFAULT ''
+tabcalorie_foods: FOOD_ID varchar(64) NOT NULL DEFAULT ''
 tabcalorie_foods: TITLE varchar(255) NOT NULL DEFAULT ''
 tabcalorie_foods: UNIT varchar(32) NOT NULL DEFAULT ''
+tabcalorie_foods: FOOD_URL varchar(255) NOT NULL DEFAULT ''
+tabcalorie_foods: UNIT_GUID varchar(64) NOT NULL DEFAULT '0000000000000001'
+tabcalorie_foods: UNIT_OPTIONS text
+tabcalorie_foods: DEFAULT_MULTIPLIER float NOT NULL DEFAULT '100'
+tabcalorie_foods: DEFAULT_SLOT int(11) NOT NULL DEFAULT '0'
+tabcalorie_foods: SERVICE_JSON text
 tabcalorie_foods: ENERGY_100 float NOT NULL DEFAULT '0'
 tabcalorie_foods: PROTEIN_100 float NOT NULL DEFAULT '0'
 tabcalorie_foods: FAT_100 float NOT NULL DEFAULT '0'
@@ -165,9 +184,27 @@ tabcalorie_days: FIBER float NOT NULL DEFAULT '0'
 tabcalorie_days: SUGAR float NOT NULL DEFAULT '0'
 tabcalorie_days: SLOT_COUNT int(11) NOT NULL DEFAULT '0'
 tabcalorie_days: FOODSTUFF_COUNT int(11) NOT NULL DEFAULT '0'
+tabcalorie_days: STEPS float NOT NULL DEFAULT '0'
+tabcalorie_days: ACTIVITY_KCAL float NOT NULL DEFAULT '0'
+tabcalorie_days: ACTIVITY_COUNT int(11) NOT NULL DEFAULT '0'
 tabcalorie_days: NOTES text
+tabcalorie_days: RAW_JSON longtext
 tabcalorie_days: UPDATED datetime NOT NULL DEFAULT '0000-00-00 00:00:00'
 tabcalorie_days: KEY IDX_TC_DAY_DATE (DAY_DATE)
+tabcalorie_activities: ID int(10) unsigned NOT NULL auto_increment
+tabcalorie_activities: ACTIVITY_KEY varchar(64) NOT NULL DEFAULT ''
+tabcalorie_activities: ACTIVITY_DATE date NOT NULL
+tabcalorie_activities: ACTIVITY_ID varchar(64) NOT NULL DEFAULT ''
+tabcalorie_activities: TITLE varchar(255) NOT NULL DEFAULT ''
+tabcalorie_activities: TYPE varchar(64) NOT NULL DEFAULT ''
+tabcalorie_activities: ACTIVITY_TYPE varchar(64) NOT NULL DEFAULT ''
+tabcalorie_activities: STEPS float NOT NULL DEFAULT '0'
+tabcalorie_activities: ENERGY float NOT NULL DEFAULT '0'
+tabcalorie_activities: UNIT varchar(32) NOT NULL DEFAULT 'kcal'
+tabcalorie_activities: DURATION float NOT NULL DEFAULT '0'
+tabcalorie_activities: RAW_JSON text
+tabcalorie_activities: SYNCED_AT datetime NOT NULL DEFAULT '0000-00-00 00:00:00'
+tabcalorie_activities: KEY IDX_TC_ACTIVITY_DATE (ACTIVITY_DATE)
 tabcalorie_sync_log: ID int(10) unsigned NOT NULL auto_increment
 tabcalorie_sync_log: RUN_AT datetime NOT NULL DEFAULT '0000-00-00 00:00:00'
 tabcalorie_sync_log: KIND varchar(32) NOT NULL DEFAULT ''
@@ -193,6 +230,7 @@ EOD;
         SQLExec("DROP TABLE IF EXISTS tabcalorie_days");
         SQLExec("DROP TABLE IF EXISTS tabcalorie_sync_log");
         SQLExec("DROP TABLE IF EXISTS tabcalorie_write_queue");
+        SQLExec("DROP TABLE IF EXISTS tabcalorie_activities");
         parent::uninstall();
     }
 
@@ -209,7 +247,8 @@ EOD;
         $props = array('LastDate', 'Partial', 'FilledSlots', 'GroupMainCarbs',
             'GroupSnacksCarbs', 'GroupDayCarbs', 'TotalCarbs', 'TotalKcal',
             'TotalProtein', 'TotalFat', 'TotalFiber', 'TotalSugar', 'TotalXE',
-            'GI', 'Notes', 'Updated');
+            'GI', 'Notes', 'Updated', 'Status', 'Raw',
+            'ActivitySteps', 'ActivityKcal', 'ActivityCount');
         for ($i = 1; $i <= 6; $i++) {
             $props[] = 'Slot' . $i . 'Carbs';
             $props[] = 'Slot' . $i . 'Kcal';
@@ -279,6 +318,13 @@ EOD;
                 $data['ID'] = $p['ID'];
                 SQLUpdate('plugins', $data);
             }
+        }
+
+        // Keep object Status/Raw fresh on every module instantiation (page load).
+        try {
+            TabCalorieStore::refreshStatusObject($this->configAll());
+        } catch (Exception $e) {
+            // Never break the admin page because of a status refresh.
         }
     }
 
@@ -391,6 +437,12 @@ EOD;
             if ($mode === 'diagnose_ajax') {
                 $this->json(array('ok' => true, 'steps' => $this->diagnose()));
             }
+            if ($mode === 'food_search_ajax') {
+                $this->ajaxFoodSearch(isset($_GET['q']) ? (string)$_GET['q'] : '');
+            }
+            if ($mode === 'food_detail_ajax') {
+                $this->ajaxFoodDetail(isset($_GET['guid']) ? (string)$_GET['guid'] : '');
+            }
         }
         if (strtoupper(isset($_SERVER['REQUEST_METHOD']) ? $_SERVER['REQUEST_METHOD'] : 'GET') === 'POST') {
             if (!$this->checkCsrf()) {
@@ -420,6 +472,12 @@ EOD;
                 } elseif ($postMode === 'food_save') {
                     $r = $this->saveFoodFromPost();
                     $message = $this->tr('TC_SAVED');
+                } elseif ($postMode === 'food_create') {
+                    TabCalorieStore::saveFoodRecord($_POST);
+                    $message = $this->tr('TC_SAVED');
+                } elseif ($postMode === 'food_delete') {
+                    TabCalorieStore::deleteFoodRecord(isset($_POST['id']) ? $_POST['id'] : 0);
+                    $message = $this->tr('TC_SAVED');
                 } elseif ($postMode === 'ns_test') {
                     $r = $this->testNightscout();
                     $message = $r['message'];
@@ -441,7 +499,7 @@ EOD;
 
     function render($tab, $cfg, $message, $error, $isAdmin)
     {
-        $tabs = array('overview', 'history', 'foods', 'chart', 'export', 'writeback', 'diagnostics', 'settings', 'instructions');
+        $tabs = array('overview', 'activity', 'history', 'foods', 'chart', 'export', 'writeback', 'diagnostics', 'settings', 'instructions');
         if (!in_array($tab, $tabs, true)) {
             $tab = 'overview';
         }
@@ -474,6 +532,7 @@ EOD;
 
         switch ($tab) {
             case 'overview':    $html .= $this->tabOverview($cfg); break;
+            case 'activity':    $html .= $this->tabActivity(); break;
             case 'history':     $html .= $this->tabHistory(); break;
             case 'foods':       $html .= $this->tabFoods($isAdmin); break;
             case 'chart':       $html .= $this->tabChart(); break;
@@ -585,6 +644,67 @@ EOD;
             $html .= '<div class="tc-panel"><div class="tc-panel-head">' . $this->e($this->tr('TC_NOTES')) .
                 '</div><div class="tc-panel-body">' . nl2br($this->e($ov['notes'])) . '</div></div>';
         }
+        if ($ov['activity_count'] > 0) {
+            $html .= '<div class="tc-alert tc-ok">' . $this->e($this->tr('TC_STEPS')) . ': ' .
+                $ov['steps'] . ' · ' . $this->e($this->tr('TC_ACTIVITY_KCAL')) . ': ' .
+                $ov['activity_kcal'] . ' <a href="' . $this->e($this->url('', array('tab' => 'activity'))) . '">' .
+                $this->e($this->tr('TC_TAB_ACTIVITY')) . ' →</a></div>';
+        }
+        return $html;
+    }
+
+    /** Activity imported from the TK diary (Health Connect -> TK -> plugin). */
+    function tabActivity()
+    {
+        $ov = TabCalorieStore::overview();
+        $rows = TabCalorieStore::activityRows($ov['date']);
+        $since = date('Y-m-d', time() - 6 * 86400);
+        $week = TabCalorieStore::dayRows($since, date('Y-m-d'));
+        $wSteps = 0.0;
+        $wKcal = 0.0;
+        foreach ($week as $d) {
+            $wSteps += TabCalorieStore::num($d['STEPS']);
+            $wKcal += TabCalorieStore::num($d['ACTIVITY_KCAL']);
+        }
+        $html = '<div class="tc-row">';
+        $html .= '<div class="tc-card"><div class="tc-card-title">' . $this->e($this->tr('TC_LAST_FILLED_DAY')) .
+            '</div><div class="tc-big">' . $this->e($ov['date']) . '</div></div>';
+        $html .= '<div class="tc-card"><div class="tc-card-title">' . $this->e($this->tr('TC_STEPS')) .
+            '</div><div class="tc-big">' . $ov['steps'] . '</div><div class="tc-small">' .
+            $this->e($this->tr('TC_WEEK')) . ': ' . TabCalorieStore::round1($wSteps) . '</div></div>';
+        $html .= '<div class="tc-card"><div class="tc-card-title">' . $this->e($this->tr('TC_ACTIVITY_KCAL')) .
+            '</div><div class="tc-big">' . $ov['activity_kcal'] . '</div><div class="tc-small">' .
+            $this->e($this->tr('TC_WEEK')) . ': ' . TabCalorieStore::round1($wKcal) .
+            ' · ' . $this->e($this->tr('TC_ACTIVITIES')) . ': ' . $ov['activity_count'] . '</div></div>';
+        $html .= '</div>';
+
+        $html .= '<div class="tc-panel"><div class="tc-panel-head">' . $this->e($this->tr('TC_ACTIVITY_DAY')) .
+            ' — ' . $this->e($ov['date']) . '</div><div class="tc-table-wrap"><table class="tc-table"><thead><tr><th>' .
+            $this->e($this->tr('TC_FOOD')) . '</th><th>' . $this->e($this->tr('TC_TYPE')) .
+            '</th><th>' . $this->e($this->tr('TC_STEPS')) . '</th><th>' . $this->e($this->tr('TC_ACTIVITY_KCAL')) .
+            '</th><th>' . $this->e($this->tr('TC_DURATION')) . '</th></tr></thead><tbody>';
+        foreach ($rows as $a) {
+            $html .= '<tr><td>' . $this->e($a['TITLE']) . '</td><td>' . $this->e($a['TYPE']) .
+                '</td><td>' . $a['STEPS'] . '</td><td>' . $a['ENERGY'] . ' ' . $this->e($a['UNIT']) .
+                '</td><td>' . $a['DURATION'] . '</td></tr>';
+        }
+        if (!$rows) {
+            $html .= '<tr><td colspan="5" class="tc-muted">' . $this->e($this->tr('TC_NO_ACTIVITY')) . '</td></tr>';
+        }
+        $html .= '</tbody></table></div></div>';
+
+        $html .= '<div class="tc-panel"><div class="tc-panel-head">' . $this->e($this->tr('TC_WEEK')) .
+            ' (7)</div><div class="tc-table-wrap"><table class="tc-table"><thead><tr><th>' .
+            $this->e($this->tr('TC_DATE')) . '</th><th>' . $this->e($this->tr('TC_STEPS')) .
+            '</th><th>' . $this->e($this->tr('TC_ACTIVITY_KCAL')) . '</th><th>' .
+            $this->e($this->tr('TC_ACTIVITIES')) . '</th></tr></thead><tbody>';
+        foreach (array_reverse($week) as $d) {
+            $html .= '<tr><td>' . $this->e(TabCalorieExporter::dateUa($d['DAY_DATE'])) . '</td><td>' .
+                $d['STEPS'] . '</td><td>' . $d['ACTIVITY_KCAL'] . '</td><td>' .
+                (int)$d['ACTIVITY_COUNT'] . '</td></tr>';
+        }
+        $html .= '</tbody></table></div></div>';
+        $html .= '<div class="tc-alert tc-ok">' . $this->e($this->tr('TC_ACTIVITY_HINT')) . '</div>';
         return $html;
     }
 
@@ -611,37 +731,133 @@ EOD;
     function tabFoods($isAdmin)
     {
         $rows = SQLSelect("SELECT * FROM tabcalorie_foods ORDER BY TITLE LIMIT 200");
-        $html = '<div class="tc-panel"><div class="tc-panel-head">' . $this->e($this->tr('TC_FOODS')) .
+        $editId = isset($_GET['edit']) ? (int)$_GET['edit'] : 0;
+        $edit = $editId ? TabCalorieStore::foodRecord($editId) : array();
+        $html = '';
+
+        if ($isAdmin) {
+            $html .= '<div class="tc-panel"><div class="tc-panel-head">' . $this->e($this->tr('TC_FOOD_FORM')) .
+                '</div><div class="tc-panel-body">';
+            $html .= '<div class="tc-search"><input type="text" id="tc-food-q" placeholder="' .
+                $this->e($this->tr('TC_FOOD_SEARCH')) . '" style="min-width:260px"> ' .
+                '<button type="button" class="tc-btn" id="tc-food-search">' .
+                $this->e($this->tr('TC_FOOD_SEARCH_BTN')) . '</button>' .
+                '<div id="tc-food-results" class="tc-results"></div></div>';
+            $html .= '<form method="post" id="tc-food-form" class="tc-form tc-form-grid">' .
+                '<input type="hidden" name="csrf" value="' . $this->e($this->csrfToken()) . '">' .
+                '<input type="hidden" name="do" value="food_create">' .
+                '<input type="hidden" name="ID" value="' . (int)(isset($edit['ID']) ? $edit['ID'] : 0) . '">';
+            $v = function ($key, $default = '') use ($edit) {
+                return isset($edit[$key]) ? $edit[$key] : $default;
+            };
+            $fields = array(
+                array('TITLE', $this->tr('TC_FOOD'), 'text'),
+                array('FOOD_ID', $this->tr('TC_FOOD_ID'), 'text'),
+                array('FOOD_GUID', $this->tr('TC_FOOD_GUID'), 'text'),
+                array('FOOD_URL', $this->tr('TC_FOOD_URL'), 'text'),
+                array('UNIT', $this->tr('TC_UNIT'), 'text'),
+                array('UNIT_GUID', $this->tr('TC_UNIT_GUID'), 'text'),
+                array('DEFAULT_MULTIPLIER', $this->tr('TC_DEFAULT_GRAMS'), 'number'),
+                array('DEFAULT_SLOT', $this->tr('TC_DEFAULT_SLOT'), 'number'),
+                array('ENERGY_100', $this->tr('TC_KCAL') . '/100', 'number'),
+                array('PROTEIN_100', $this->tr('TC_PROTEIN') . '/100', 'number'),
+                array('FAT_100', $this->tr('TC_FAT') . '/100', 'number'),
+                array('CARB_100', $this->tr('TC_CARBS') . '/100', 'number'),
+                array('FIBER_100', $this->tr('TC_FIBER') . '/100', 'number'),
+                array('SUGAR_100', $this->tr('TC_SUGAR') . '/100', 'number'),
+                array('GI', $this->tr('TC_GI'), 'number'),
+                array('NOTES', $this->tr('TC_NOTES'), 'text'),
+            );
+            foreach ($fields as $f) {
+                $html .= '<label class="tc-field"><span>' . $this->e($f[1]) . '</span><input type="' .
+                    $f[2] . '" name="' . $f[0] . '" value="' . $this->e($v($f[0], $f[2] === 'number' ? 0 : '')) .
+                    '"></label>';
+            }
+            $html .= '<label class="tc-field"><span>' . $this->e($this->tr('TC_UNIT_OPTIONS')) .
+                '</span><input type="text" name="UNIT_OPTIONS" value="' . $this->e($v('UNIT_OPTIONS')) .
+                '" placeholder=\'[{"id":"0000000000000001","title":"1 g","multiplier":1}]\'></label>';
+            $html .= '<div class="tc-actions"><button type="submit" class="tc-btn tc-btn-primary">' .
+                $this->e($this->tr('TC_SAVE')) . '</button> <a class="tc-btn" href="' .
+                $this->e($this->url('', array('tab' => 'foods'))) . '">' .
+                $this->e($this->tr('TC_CANCEL')) . '</a></div></form></div></div>';
+            $html .= $this->foodsJs();
+        }
+
+        $html .= '<div class="tc-panel"><div class="tc-panel-head">' . $this->e($this->tr('TC_FOODS')) .
             '</div><div class="tc-table-wrap"><table class="tc-table"><thead><tr><th>' .
-            $this->e($this->tr('TC_FOOD')) . '</th><th>' . $this->e($this->tr('TC_KCAL')) .
+            $this->e($this->tr('TC_FOOD')) . '</th><th>ID / URL</th><th>' . $this->e($this->tr('TC_KCAL')) .
             '</th><th>' . $this->e($this->tr('TC_PROTEIN')) . '</th><th>' . $this->e($this->tr('TC_FAT')) .
-            '</th><th>' . $this->e($this->tr('TC_CARBS')) . '</th><th>' . $this->e($this->tr('TC_FIBER')) .
-            '</th><th>' . $this->e($this->tr('TC_GI')) . '</th><th>' . $this->e($this->tr('TC_NOTES')) . '</th></tr></thead><tbody>';
+            '</th><th>' . $this->e($this->tr('TC_CARBS')) . '</th><th>' . $this->e($this->tr('TC_GI')) .
+            '</th><th>' . $this->e($this->tr('TC_NOTES')) . '</th>' . ($isAdmin ? '<th></th>' : '') .
+            '</tr></thead><tbody>';
         foreach ($rows as $r) {
             $html .= '<tr><td>' . $this->e($r['TITLE']) . '<div class="tc-small">/100 ' .
-                $this->e($r['UNIT']) . '</div></td><td>' . $r['ENERGY_100'] . '</td><td>' .
+                $this->e($r['UNIT']) . '</div></td><td class="tc-small">' . $this->e($r['FOOD_ID']) .
+                '<br>' . $this->e($r['FOOD_URL']) . '</td><td>' . $r['ENERGY_100'] . '</td><td>' .
                 $r['PROTEIN_100'] . '</td><td>' . $r['FAT_100'] . '</td><td>' . $r['CARB_100'] .
-                '</td><td>' . $r['FIBER_100'] . '</td>';
+                '</td><td>' . $r['GI'] . '</td><td>' . $this->e($r['NOTES']) . '</td>';
             if ($isAdmin) {
-                $hidden = '<input type="hidden" name="csrf" value="' . $this->e($this->csrfToken()) .
-                    '"><input type="hidden" name="do" value="food_save"><input type="hidden" name="guid" value="' .
-                    $this->e($r['FOOD_GUID']) . '">';
-                $html .= '<td><form method="post" class="tc-inline">' . $hidden .
-                    '<input type="number" name="gi" value="' . $this->e($r['GI']) .
-                    '" min="0" max="200" style="width:60px">' .
-                    '<button type="submit" class="tc-btn tc-btn-sm">' . $this->e($this->tr('TC_SAVE')) . '</button></form></td>' .
-                    '<td><form method="post" class="tc-inline">' . $hidden .
-                    '<input type="text" name="notes" value="' . $this->e($r['NOTES']) . '" style="width:140px">' .
-                    '<button type="submit" class="tc-btn tc-btn-sm">' . $this->e($this->tr('TC_SAVE')) . '</button></form></td></tr>';
-            } else {
-                $html .= '<td>' . $r['GI'] . '</td><td>' . $this->e($r['NOTES']) . '</td></tr>';
+                $html .= '<td><a class="tc-btn tc-btn-sm" href="' .
+                    $this->e($this->url('', array('tab' => 'foods', 'edit' => $r['ID']))) . '">' .
+                    $this->e($this->tr('TC_EDIT')) . '</a>' .
+                    '<form method="post" class="tc-inline"><input type="hidden" name="csrf" value="' .
+                    $this->e($this->csrfToken()) . '"><input type="hidden" name="do" value="food_delete">' .
+                    '<input type="hidden" name="id" value="' . (int)$r['ID'] . '">' .
+                    '<button type="submit" class="tc-btn tc-btn-sm" onclick="return confirm(\'' .
+                    $this->e($this->tr('TC_CONFIRM_DELETE')) . '\');">' .
+                    $this->e($this->tr('TC_DELETE')) . '</button></form></td>';
             }
+            $html .= '</tr>';
         }
         if (!$rows) {
-            $html .= '<tr><td colspan="8" class="tc-muted">' . $this->e($this->tr('TC_NO_DATA')) . '</td></tr>';
+            $html .= '<tr><td colspan="' . ($isAdmin ? '10' : '9') . '" class="tc-muted">' .
+                $this->e($this->tr('TC_NO_DATA')) . '</td></tr>';
         }
         $html .= '</tbody></table></div></div>';
         return $html;
+    }
+
+    /** Autocomplete → service fields of the chosen food (stored locally). */
+    function foodsJs()
+    {
+        $searchUrl = $this->url('food_search_ajax');
+        $detailUrl = $this->url('food_detail_ajax');
+        return '<script>
+(function(){
+  var sUrl=' . json_encode($searchUrl) . ', dUrl=' . json_encode($detailUrl) . ';
+  document.addEventListener("DOMContentLoaded",function(){
+    var q=document.getElementById("tc-food-q"), btn=document.getElementById("tc-food-search");
+    var out=document.getElementById("tc-food-results"), form=document.getElementById("tc-food-form");
+    if(!q||!btn||!out||!form)return;
+    function set(name,value){var el=form.querySelector("[name="+name+"]");if(el)el.value=value;}
+    function fill(item){
+      set("TITLE",item.title||"");set("FOOD_ID",item.id||"");set("FOOD_GUID",item.id||"");
+      set("FOOD_URL",item.url||"");set("UNIT",item.unit||"g");
+      out.innerHTML="<div class=tc-small>"+(item.title||"")+"</div>";
+      fetch(dUrl+"&guid="+encodeURIComponent(item.id)).then(function(r){return r.json();}).then(function(j){
+        if(!j.ok||!j.form)return;
+        var f=j.form;
+        var units=(f.unitOptions||[]).map(function(u){return {id:u.id,title:u.title,multiplier:u.multiplier};});
+        if(units.length)set("UNIT_OPTIONS",JSON.stringify(units));
+        if(f.unitGuid)set("UNIT_GUID",f.unitGuid);
+        if(f.multiplier)set("DEFAULT_MULTIPLIER",f.multiplier);
+      }).catch(function(){});
+    }
+    btn.onclick=function(){
+      out.innerHTML="...";
+      fetch(sUrl+"&q="+encodeURIComponent(q.value)).then(function(r){return r.json();}).then(function(j){
+        if(!j.ok){out.innerHTML="<span class=tc-err>"+(j.message||"error")+"</span>";return;}
+        out.innerHTML="";
+        (j.items||[]).forEach(function(it){
+          var a=document.createElement("button");a.type="button";a.className="tc-btn tc-btn-sm";
+          a.textContent=it.title;a.style.margin="2px";a.onclick=function(){fill(it);};
+          out.appendChild(a);
+        });
+      }).catch(function(e){out.innerHTML="error";});
+    };
+  });
+})();
+</script>';
     }
 
     function tabChart()
@@ -753,6 +969,9 @@ EOD;
             array('number', 'HOOK_DEBOUNCE_SEC', $this->tr('TC_HOOK_DEBOUNCE')),
             array('select', 'LANGUAGE', $this->tr('TC_LANGUAGE'), array('uk' => 'Українська', 'en' => 'English', 'ru' => 'Русский')),
             array('select', 'CSV_DELIMITER', $this->tr('TC_CSV_DELIMITER'), array(';' => ';', ',' => ',', "\t" => 'TAB')),
+            array('number', 'LOG_RETENTION_DAYS', $this->tr('TC_LOG_RETENTION')),
+            array('number', 'LOG_MAX_ROWS', $this->tr('TC_LOG_MAX_ROWS')),
+            array('number', 'WRITE_QUEUE_TTL_DAYS', $this->tr('TC_QUEUE_TTL')),
         );
         foreach ($fields as $f) {
             list($type, $key, $label) = $f;
@@ -782,6 +1001,7 @@ EOD;
             'WRITEBACK_CONFIRM' => $this->tr('TC_WRITEBACK_CONFIRM'),
             'NS_ENABLED' => $this->tr('TC_NS_ENABLED'),
             'DEMO_MODE' => $this->tr('TC_DEMO_MODE'),
+            'ACTIVITY_ENABLED' => $this->tr('TC_ACTIVITY_ENABLED'),
         );
         foreach ($checks as $key => $label) {
             $html .= '<label class="tc-check"><input type="checkbox" name="' . $key . '" value="1"' .
@@ -849,7 +1069,9 @@ EOD;
             'RETENTION_DAYS' => array(30, 3650, 1825), 'GRAMS_PER_XE' => array(5, 20, 10),
             'CARBS_TARGET' => array(0, 1000, 120), 'CALORIES_TARGET' => array(0, 6000, 1800),
             'PROTEIN_TARGET' => array(0, 400, 90), 'FAT_TARGET' => array(0, 300, 60),
-            'MEAL_NORM_SHARE' => array(10, 50, 25), 'HOOK_DEBOUNCE_SEC' => array(0, 86400, 60));
+            'MEAL_NORM_SHARE' => array(10, 50, 25), 'HOOK_DEBOUNCE_SEC' => array(0, 86400, 60),
+            'LOG_RETENTION_DAYS' => array(1, 365, 30), 'LOG_MAX_ROWS' => array(100, 50000, 2000),
+            'WRITE_QUEUE_TTL_DAYS' => array(1, 365, 7));
         foreach ($numKeys as $k => $rule) {
             if (isset($_POST[$k])) {
                 $v = (int)$_POST[$k];
@@ -862,7 +1084,8 @@ EOD;
         if (isset($_POST['CSV_DELIMITER'])) {
             $cfg['CSV_DELIMITER'] = in_array($_POST['CSV_DELIMITER'], array(';', ',', "\t"), true) ? $_POST['CSV_DELIMITER'] : ';';
         }
-        foreach (array('SYNC_ENABLED', 'HOOK_ENABLED', 'WRITEBACK_ENABLED', 'WRITEBACK_CONFIRM', 'NS_ENABLED', 'DEMO_MODE') as $k) {
+        foreach (array('SYNC_ENABLED', 'HOOK_ENABLED', 'WRITEBACK_ENABLED', 'WRITEBACK_CONFIRM',
+            'NS_ENABLED', 'DEMO_MODE', 'ACTIVITY_ENABLED') as $k) {
             $cfg[$k] = (isset($_POST[$k]) && $_POST[$k] === '1') ? 1 : 0;
         }
         if ($cfg['WRITEBACK_ENABLED'] && !$cfg['WRITEBACK_CONFIRM']) {
@@ -895,7 +1118,8 @@ EOD;
         $rec['NOTES'] = mb_substr(strip_tags((string)(isset($_POST['notes']) ? $_POST['notes'] : '')), 0, 500);
         SQLUpdate('tabcalorie_foods', $rec);
         $ov = TabCalorieStore::overview();
-        TabCalorieStore::updateObject($ov, (int)$this->configAll()['GRAMS_PER_XE']);
+        $cfg = $this->configAll();
+        TabCalorieStore::updateObject($ov, (int)$cfg['GRAMS_PER_XE'], $cfg);
         return true;
     }
 
@@ -911,6 +1135,61 @@ EOD;
             $csv = TabCalorieExporter::dailyCsv($from, $to, $cfg['CSV_DELIMITER'], $cfg['GRAMS_PER_XE']);
         }
         TabCalorieExporter::download('tabcalorie_' . $period . '_' . $from . '_' . $to . '.csv', $csv);
+    }
+
+    /** AJAX: food autocomplete via the TK search endpoint (read-only). */
+    function ajaxFoodSearch($query)
+    {
+        $query = trim(mb_substr($query, 0, 80));
+        if ($query === '') {
+            $this->json(array('ok' => false, 'items' => array()));
+        }
+        $cfg = $this->configAll();
+        if ($cfg['DEMO_MODE']) {
+            $this->json(array('ok' => true, 'items' => array(
+                array('id' => 'demo-oat', 'title' => 'Вівсянка (демо)', 'url' => 'vivsianka', 'unit' => 'g'),
+            )));
+        }
+        $api = new TabCalorieApi($cfg);
+        try {
+            $api->login();
+            $items = $api->searchFood($query);
+            $out = array();
+            foreach (array_slice($items, 0, 15) as $item) {
+                if (!is_array($item)) {
+                    continue;
+                }
+                $out[] = array(
+                    'id' => isset($item['id']) ? $item['id'] : '',
+                    'title' => isset($item['title']) ? $item['title'] : '',
+                    'url' => isset($item['url']) ? $item['url'] : '',
+                    'unit' => isset($item['unit']) ? $item['unit'] : 'g',
+                );
+            }
+            $this->json(array('ok' => true, 'items' => $out));
+        } catch (Exception $e) {
+            $this->json(array('ok' => false, 'message' => $api->getLastError(), 'items' => array()));
+        }
+    }
+
+    /** AJAX: full food form (unit options) from TK, for service data storage. */
+    function ajaxFoodDetail($guid)
+    {
+        $guid = trim(mb_substr($guid, 0, 64));
+        if ($guid === '') {
+            $this->json(array('ok' => false));
+        }
+        $cfg = $this->configAll();
+        $api = new TabCalorieApi($cfg);
+        try {
+            if (!$cfg['DEMO_MODE']) {
+                $api->login();
+            }
+            $form = $api->getFoodForm($guid);
+            $this->json(array('ok' => true, 'form' => $form));
+        } catch (Exception $e) {
+            $this->json(array('ok' => false, 'message' => $api->getLastError()));
+        }
     }
 
     function diagnose()
@@ -947,13 +1226,21 @@ EOD;
         if (!$entry['ID']) {
             return array('ok' => false, 'message' => 'Entry not found');
         }
+        $food = SQLSelectOne("SELECT * FROM tabcalorie_foods WHERE FOOD_GUID='" .
+            DBSafe($entry['FOOD_GUID']) . "'");
         $payload = array(
-            'guid' => $entry['FOOD_GUID'],
+            'guid' => $food['FOOD_ID'] ? $food['FOOD_ID'] : $entry['FOOD_GUID'],
             'title' => $entry['TITLE'],
-            'url' => isset($entry['URL']) ? $entry['URL'] : strtolower(preg_replace('/[^a-z0-9]+/i', '-', $entry['TITLE'])),
+            'url' => $food['FOOD_URL'] ? $food['FOOD_URL'] :
+                (isset($entry['FOOD_URL']) && $entry['FOOD_URL'] ? $entry['FOOD_URL'] :
+                    strtolower(preg_replace('/[^a-z0-9]+/i', '-', $entry['TITLE']))),
             'date' => $entry['ENTRY_DATE'],
-            'multiplier' => (string)TabCalorieStore::round1($entry['QUANTITY']),
-            'diaryTimeGuid' => (string)(int)$entry['SLOT_ID'],
+            'multiplier' => (string)($food['DEFAULT_MULTIPLIER'] > 0
+                ? $food['DEFAULT_MULTIPLIER'] : TabCalorieStore::round1($entry['QUANTITY'])),
+            'diaryTimeGuid' => (string)($food['DEFAULT_SLOT'] > 0
+                ? $food['DEFAULT_SLOT'] : (int)$entry['SLOT_ID']),
+            'unitGuid' => $food['UNIT_GUID'] ? $food['UNIT_GUID'] : '0000000000000001',
+            'unitOptions' => $food['UNIT_OPTIONS'] ? $food['UNIT_OPTIONS'] : '',
         );
         TabCalorieStore::queueWrite($entry['ID'], $payload);
         return array('ok' => true, 'message' => 'Queued, confirmation required');
@@ -1039,6 +1326,7 @@ EOD;
             $errors++;
             TabCalorieStore::log('sync', 'fail', $api->getHttpCode(), 0, $api->getLastError());
             $this->setFailure($cfg, $errors);
+            TabCalorieStore::refreshStatusObject($this->configAll());
             @flock($fp, LOCK_UN);
             fclose($fp);
             return array('ok' => false, 'rows' => 0, 'message' => $api->getLastError(), 'date' => '');
@@ -1050,6 +1338,9 @@ EOD;
                 $diary = $api->getDiary($date);
                 $parsed = TabCalorieStore::parseDiary($diary, $date);
                 $rows += TabCalorieStore::saveEntries($parsed);
+                if ((int)$cfg['ACTIVITY_ENABLED'] === 1) {
+                    TabCalorieStore::saveActivities(TabCalorieStore::parseActivities($diary, $date));
+                }
                 TabCalorieStore::saveDay($date, $diary);
                 TabCalorieStore::log('sync_day', 'ok', $api->getHttpCode(), count($parsed), $date);
             } catch (Exception $e) {
@@ -1061,20 +1352,20 @@ EOD;
             }
         }
 
-        TabCalorieStore::rebuildFoods();
-        $ov = TabCalorieStore::overview();
-        TabCalorieStore::updateObject($ov, (int)$cfg['GRAMS_PER_XE']);
-        TabCalorieStore::cleanup((int)$cfg['RETENTION_DAYS']);
-
-        if ((int)$cfg['NS_ENABLED'] === 1) {
-            $this->pushNightscoutDays($api, $ov, $cfg);
-        }
-
         $cfg['LAST_SYNC'] = date('Y-m-d H:i:s');
         $cfg['LAST_ERROR'] = $errors ? $api->getLastError() : '';
         $cfg['CIRCUIT_UNTIL'] = $errors >= 3 ? time() + 900 : 0;
         $this->config = $cfg;
         $this->saveConfig();
+
+        TabCalorieStore::rebuildFoods();
+        $ov = TabCalorieStore::overview();
+        TabCalorieStore::updateObject($ov, (int)$cfg['GRAMS_PER_XE'], $cfg);
+        TabCalorieStore::cleanup((int)$cfg['RETENTION_DAYS'], $cfg);
+
+        if ((int)$cfg['NS_ENABLED'] === 1) {
+            $this->pushNightscoutDays($api, $ov, $cfg);
+        }
         TabCalorieStore::log('sync', $errors ? 'partial' : 'ok', 0, $rows, 'days=' . $days . ' errors=' . $errors);
 
         @flock($fp, LOCK_UN);
@@ -1156,6 +1447,7 @@ EOD;
 .tc-bar{height:5px;min-width:70px;background:#eef1f5;border-radius:4px;overflow:hidden;margin-top:4px}.tc-bar span{display:block;height:100%;background:#2fa36b;transition:width .25s}
 .tc-bar-over span{background:#e2583e}.tc-bar-val{display:block;font-size:10px;color:#7a869a;margin-top:2px;white-space:nowrap}
 .tc-meals td{min-width:120px;vertical-align:top}.tc-meals td:first-child{min-width:130px}
+.tc-search{margin-bottom:12px}.tc-results{margin-top:6px;max-height:110px;overflow:auto}
 .tc-panel{background:#fff;border:1px solid #e6e9ee;border-radius:8px;margin-top:12px;overflow:hidden}
 .tc-panel-head{padding:10px 14px;font-weight:600;background:#f7f9fb;border-bottom:1px solid #e6e9ee}.tc-panel-body{padding:14px}
 .tc-table-wrap{overflow-x:auto}.tc-table{width:100%;border-collapse:collapse;font-size:13px}.tc-table th,.tc-table td{padding:8px 10px;text-align:left;border-bottom:1px solid #eef1f5;white-space:nowrap}

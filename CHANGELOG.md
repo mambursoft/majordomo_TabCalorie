@@ -4,7 +4,7 @@ aliases: [TabCalorie, CHANGELOG, Журнал змін]
 tags: [tabcalorie, majordomo, docs]
 lang: uk
 plugin: tabcalorie
-version: 1.1.0
+version: 1.2.0
 ---
 
 # Журнал змін
@@ -16,6 +16,50 @@ version: 1.1.0
 > [!NOTE]
 > Документація проєкту адаптована до Obsidian: YAML frontmatter, wiki-посилання,
 > callouts та інтерактивні чекбокси. Карта контенту — [[HOME|HOME (MOC)]].
+
+---
+
+## [1.2.0] — 2026-11-20
+
+### Додано
+
+- **Службові дані страви у довіднику `tabcalorie_foods`**: `FOOD_ID` (guid для
+  API), `FOOD_URL` (шлях `potraviny/...`), `UNIT_GUID` (за замовчуванням
+  `0000000000000001`), `UNIT_OPTIONS` (JSON доступних одиниць із множниками),
+  `DEFAULT_MULTIPLIER` (грами за замовчуванням), `DEFAULT_SLOT` (1..6),
+  `SERVICE_JSON` (сира відповідь форми ТК). Write-back у ТК використовує ці дані,
+  а не жорстко задані значення.
+- У вкладці **Довідник страв** — форма додавання/редагування страви (назва, ID,
+  URL, одиниця, грами, слот, БЖУ/ккал на 100 г, ГІ, нотатки) та пошук страви
+  через autocomplete ТК.
+- **Активність / Health Connect**: ТК повертає активність у полі `data.activities`
+  щоденника (`steps`, `energy`, `title`, `type`, `activityType`, тривалість).
+  Нова таблиця `tabcalorie_activities` (унікальний ключ — дата + ID активності),
+  агрегати `STEPS`, `ACTIVITY_KCAL`, `ACTIVITY_COUNT` у `tabcalorie_days`, нова
+  вкладка **Активність** (добовий зріз + 7-денний огляд, кроки/ккал) і ті самі
+  дані в CSV-експорті.
+- Властивості об'єкта `TabCalorie`: `status` (1 — інтеграція здорова; 0 — будь-яка
+  інтеграційна проблема або вимкнений фоновий цикл), `raw` (JSON із усіма даними
+  від початку останньої доби, за яку є хоча б один запис: сирий щоденник ТК +
+  нормалізовані записи), `ActivitySteps`, `ActivityKcal`, `ActivityCount`.
+- Нові ключі конфігурації: `ACTIVITY_ENABLED` (за замовчуванням `1`),
+  `LOG_RETENTION_DAYS` (`30`), `LOG_MAX_ROWS` (`2000`),
+  `WRITE_QUEUE_TTL_DAYS` (`7`).
+
+### Змінено
+
+- `tabcalorie_sync_log`: ротація рядків за віком і за лімітом кількості.
+- `tabcalorie_write_queue`: автоматичне очищення прострочених рядків під час cleanup.
+- CSV-експорт доповнено кроками й спаленими калоріями.
+- Оновлено документацію uk/en/ru (README, docs/INSTALL, docs/USAGE, docs/API);
+  frontmatter із версією 1.2.0 — у всіх .md-файлах.
+- Карту контенту [[HOME|HOME (MOC)]] доповнено посиланнями на нові розділи.
+
+### Примітка
+
+- Health Connect у ТК односторонній: плагін лише зчитує активність із щоденника
+  ТК і нічого не пише в Health Connect.
+- TabCalorie **не є медичним пристроєм** і не надає медичних рекомендацій.
 
 ---
 
@@ -122,6 +166,7 @@ version: 1.1.0
 
 ---
 
+[1.2.0]: https://github.com/mambursoft/majordomo_TabCalorie/releases/tag/v1.2.0
 [1.1.0]: https://github.com/mambursoft/majordomo_TabCalorie/releases/tag/v1.1.0
 [1.0.0]: https://github.com/mambursoft/majordomo_TabCalorie/releases/tag/v1.0.0
 

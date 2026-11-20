@@ -4,12 +4,12 @@ aliases: [TabCalorie, NOTICE, Повідомлення]
 tags: [tabcalorie, majordomo, docs]
 lang: uk
 plugin: tabcalorie
-version: 1.1.0
+version: 1.2.0
 ---
 
 # Повідомлення (NOTICE)
 
-Плагін MajorDoMo «TabCalorie», версія 1.1.0 (2026-11-20).
+Плагін MajorDoMo «TabCalorie», версія 1.2.0 (2026-11-20).
 
 Copyright (c) 2026 mambursoft.
 

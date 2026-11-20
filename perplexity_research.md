@@ -4,7 +4,7 @@ aliases: [TabCalorie, perplexity_research, Дослідження API]
 tags: [tabcalorie, majordomo, api]
 lang: uk
 plugin: tabcalorie
-version: 1.1.0
+version: 1.2.0
 ---
 
 # Автоматичне зведення даних харчування з «Таблиці калорійності», ін'єкцій та глікемії для звітності
@@ -48,7 +48,7 @@ const GRAMS_PER_XE = 10; // Змініть на 12, якщо ваш лікар �
 
 function onOpen() {
   SpreadsheetApp.getUi()
-    .createMenu('Діабет-Звіт')
+    .createMenu('TabCalorie-Звіт')
     .addItem('1. Зберегти логін та пароль Таблиці калорійності', 'setupCredentialsDialog')
     .addSeparator()
     .addItem('Оновити вуглеводи за сьогодні та вчора', 'syncLast2Days')
@@ -81,7 +81,7 @@ function setupCredentialsDialog() {
   const props = PropertiesService.getScriptProperties();
   props.setProperty('KT_EMAIL', emailResp.getResponseText().trim());
   props.setProperty('KT_PASSWORD', passResp.getResponseText());
-  ui.alert('Дані збережено. Тепер оберіть у меню «Діабет-Звіт» завантаження за 14 днів для перевірки.');
+  ui.alert('Дані збережено. Тепер оберіть у меню «TabCalorie-Звіт» завантаження за 14 днів для перевірки.');
 }
 
 function syncLast2Days() {
@@ -251,7 +251,7 @@ function syncCarbsForDays(daysCount) {
   const password = props.getProperty('KT_PASSWORD');
 
   if (!email || !password) {
-    throw new Error('Спочатку вкажіть логін і пароль через меню «Діабет-Звіт → 1. Зберегти логін та пароль».');
+    throw new Error('Спочатку вкажіть логін і пароль через меню «TabCalorie-Звіт → 1. Зберегти логін та пароль».');
   }
 
   const ss = SpreadsheetApp.getActiveSpreadsheet();

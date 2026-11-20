@@ -4,13 +4,13 @@ aliases: [TabCalorie, HOME, MOC, Map of Content]
 tags: [tabcalorie, majordomo, docs]
 lang: uk
 plugin: tabcalorie
-version: 1.1.0
+version: 1.2.0
 ---
 
 # HOME — карта контенту TabCalorie
 
 > [!NOTE]
-> MOC (Map of Content) для документації плагіна MajorDoMo **TabCalorie** версії 1.1.0.
+> MOC (Map of Content) для документації плагіна MajorDoMo **TabCalorie** версії 1.2.0.
 > Мови: [[README|Українська]] · [[README.en|English]] · [[README.ru|Русский]].
 > Усі сторінки містять YAML frontmatter і wiki-посилання формату Obsidian.
 
@@ -32,6 +32,7 @@ version: 1.1.0
 - [ ] Заповнити конфігурацію в адмінці модуля.
 - [ ] Натиснути «Перевірити підключення».
 - [ ] Відкрити вкладку **Огляд** і перевірити прогресбари норм.
+- [ ] Перевірити вкладку **Активність** (за `ACTIVITY_ENABLED=1`).
 
 ---
 
@@ -47,12 +48,37 @@ version: 1.1.0
   [[USAGE.en#2.5. Intake targets and progress bars|Intake targets and progress bars]] (en) ·
   [[USAGE.ru#2.5. Нормы потребления и прогрессбары|Нормы потребления и прогрессбары]] (ru).
 
-**Нові ключі версії 1.1.0:** `CALORIES_TARGET` (1800), `PROTEIN_TARGET` (90),
+**Нові ключі версії 1.2.0:** `ACTIVITY_ENABLED` (1), `LOG_RETENTION_DAYS` (30),
+`LOG_MAX_ROWS` (2000), `WRITE_QUEUE_TTL_DAYS` (7).
+
+**Ключі версії 1.1.0:** `CALORIES_TARGET` (1800), `PROTEIN_TARGET` (90),
 `FAT_TARGET` (60), `CARBS_TARGET` (120), `MEAL_NORM_SHARE` (25, діапазон 10–50, %).
 
 - [[PROMPT|Промпт створення плагіна]] — вимоги до реалізації та зафіксовані рішення.
-- [[CHANGELOG|Журнал змін]] — історія версій 1.0.0 → 1.1.0.
+- [[CHANGELOG|Журнал змін]] — історія версій 1.0.0 → 1.1.0 → 1.2.0.
 - [[NOTICE|NOTICE]] — ліцензія та відмова від відповідальності.
+
+---
+
+## Можливості 1.2.0
+
+- [ ] [[README#Вкладка «Активність»|Вкладка «Активність»]] (uk) ·
+  [[USAGE.en#11. Activity tab (v1.2.0)|Activity tab]] (en) ·
+  [[USAGE.ru#11. Вкладка «Активность» (v1.2.0)|Вкладка «Активность»]] (ru) —
+  кроки й спалені ккал із `data.activities`, добовий зріз і 7-денний огляд.
+- [ ] [[README#Форма страви у довіднику|Форма страви у довіднику]] (uk) ·
+  [[USAGE.en#4.1. Food form and service fields (v1.2.0)|Food form]] (en) —
+  службові поля `FOOD_ID`, `FOOD_URL`, `UNIT_GUID`, `UNIT_OPTIONS`,
+  `DEFAULT_MULTIPLIER`, `DEFAULT_SLOT`, `SERVICE_JSON` та autocomplete ТК.
+- [ ] [[API|Властивості `status`, `raw`, `ActivitySteps`, `ActivityKcal`, `ActivityCount`]] —
+  стан інтеграції, сирі дані й агрегат активності.
+- [ ] [[USAGE#14. Ротація логів і TTL черги (v1.2.0)|Ротація логів і TTL черги]] (uk) ·
+  [[API.en#8.4. Log rotation and queue TTL (v1.2.0)|Log rotation and queue TTL]] (en).
+- [ ] [[CHANGELOG#1.2.0|Журнал змін 1.2.0]].
+
+> [!WARNING]
+> Health Connect у ТК односторонній: плагін лише зчитує активність із щоденника
+> ТК і не пише в Health Connect.
 
 ---
 

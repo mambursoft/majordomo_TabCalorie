@@ -4,14 +4,14 @@ aliases: [TabCalorie, INSTALL.ru, Установка]
 tags: [tabcalorie, majordomo, settings]
 lang: ru
 plugin: tabcalorie
-version: 1.1.0
+version: 1.2.0
 ---
 
 # Установка TabCalorie
 
 [[INSTALL|Українська]] · [[INSTALL.en|English]] · [[INSTALL.ru|Русский]]
 
-Версия 1.1.0 · 2026-11-20
+Версия 1.2.0 · 2026-11-20
 
 Это руководство описывает установку плагина MajorDoMo `tabcalorie` двумя
 способами: через Market и вручную из архива `.tgz`.
@@ -122,10 +122,11 @@ HOME.md                      карта контента (MOC)
 | Таблица | Назначение |
 |---|---|
 | `tabcalorie_entries` | записи блюд (дата, слот, блюдо, количество × единица, БЖУ, GI, заметки, `source`, `synced_at`); уникальный ключ `date + slot + food_guid + unit_raw` |
-| `tabcalorie_foods` | справочник блюд на 100 г |
-| `tabcalorie_days` | суточные суммы |
-| `tabcalorie_sync_log` | журнал синхронизаций без секретов |
-| `tabcalorie_write_queue` | очередь записей обратно в ТК с подтверждением |
+| `tabcalorie_foods` | справочник блюд на 100 г + служебные поля для записи в ТК (`FOOD_ID`, `FOOD_URL`, `UNIT_GUID`, `UNIT_OPTIONS`, `DEFAULT_MULTIPLIER`, `DEFAULT_SLOT`, `SERVICE_JSON`) |
+| `tabcalorie_days` | суточные суммы, включая `STEPS`, `ACTIVITY_KCAL`, `ACTIVITY_COUNT` |
+| `tabcalorie_activities` | активность из `data.activities` ТК; уникальный ключ — дата + ID активности |
+| `tabcalorie_sync_log` | журнал синхронизаций без секретов; ротация `LOG_RETENTION_DAYS` / `LOG_MAX_ROWS` |
+| `tabcalorie_write_queue` | очередь записей обратно в ТК с подтверждением; TTL `WRITE_QUEUE_TTL_DAYS` |
 
 ### 3.6. Настройте фоновый цикл
 
@@ -163,6 +164,10 @@ HOME.md                      карта контента (MOC)
 | `HOOK_PROPERTY` | `Obj.Prop` триггера | — |
 | `HOOK_DEBOUNCE_SEC` | дебаунс, сек | `60` |
 | `RETENTION_DAYS` | хранение данных | `1825` (5 лет) |
+| `ACTIVITY_ENABLED` | `1` — импорт активности из ТК; `0` — отключить | `1` |
+| `LOG_RETENTION_DAYS` | ротация журнала по возрасту, дни | `30` |
+| `LOG_MAX_ROWS` | ротация журнала по количеству строк | `2000` |
+| `WRITE_QUEUE_TTL_DAYS` | TTL очереди записи, дни | `7` |
 | `LANGUAGE` | `uk` / `en` / `ru` | `uk` |
 | `GRAMS_PER_XE` | г на 1 ХЕ | `10` |
 | `CALORIES_TARGET` | суточная норма калорий, ккал | `1800` |
@@ -209,6 +214,21 @@ HOME.md                      карта контента (MOC)
 - [ ] Проверьте вкладку **Диагностика** → последняя успешная синхронизация и журнал.
 - [ ] Убедитесь, что прогрессбары норм на вкладке **Обзор** отображаются корректно.
 
+### 4.3. Что нового в v1.2.0
+
+- [ ] Вкладка **Активность**: шаги и сожжённые ккал из `data.activities` ТК,
+  `ACTIVITY_ENABLED=1` (см. [[USAGE.ru|Использование]]).
+- [ ] Форма блюда во вкладке **Справочник блюд** со служебными полями для записи
+  в ТК (см. [[USAGE.ru|Использование]]).
+- [ ] Свойства объекта `status`, `raw`, `ActivitySteps`, `ActivityKcal`,
+  `ActivityCount` (см. [[API|API и форматы данных]]).
+- [ ] Ротация `tabcalorie_sync_log` (`LOG_RETENTION_DAYS=30`, `LOG_MAX_ROWS=2000`)
+  и TTL очереди `tabcalorie_write_queue` (`WRITE_QUEUE_TTL_DAYS=7`).
+
+> [!NOTE]
+> Health Connect в ТК односторонний: плагин только считывает активность из
+> дневника ТК и ничего не пишет в Health Connect.
+
 ---
 
 ## 5. Обновление
@@ -228,7 +248,8 @@ HOME.md                      карта контента (MOC)
 
 1. Админка → **Модули** → деактивируйте `tabcalorie`.
 2. При желании удалите таблицы `tabcalorie_entries`, `tabcalorie_foods`,
-   `tabcalorie_days`, `tabcalorie_sync_log`, `tabcalorie_write_queue`.
+   `tabcalorie_days`, `tabcalorie_activities`, `tabcalorie_sync_log`,
+   `tabcalorie_write_queue`.
 3. Удалите файлы `modules/tabcalorie/`, `templates/tabcalorie/`,
    `languages/tabcalorie_*.php`, `scripts/cycle_tabcalorie.php`,
    `img/modules/tabcalorie.png`.

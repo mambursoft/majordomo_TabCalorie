@@ -4,14 +4,14 @@ aliases: [TabCalorie, API, API ТК]
 tags: [tabcalorie, majordomo, api]
 lang: uk
 plugin: tabcalorie
-version: 1.1.0
+version: 1.2.0
 ---
 
 # API та формати даних TabCalorie
 
 [[API|Українська]] · [[API.en|English]]
 
-Версія 1.1.0 · 2026-11-20
+Версія 1.2.0 · 2026-11-20
 
 Цей документ фіксує технічні факти про API «Таблиці калорійності» (ТК),
 Nightscout і формати даних плагіна. Він призначений для розробників і для
@@ -36,6 +36,15 @@ Nightscout і формати даних плагіна. Він призначе�
 
 Помилки повертаються **у JSON як `code != 0` навіть при HTTP 200** — завжди
 перевіряйте тіло відповіді.
+
+### Ключі конфігурації v1.2.0
+
+| Ключ | Тип | За замовчуванням | Призначення |
+|---|---|---|---|
+| `ACTIVITY_ENABLED` | 0/1 | `1` | Імпорт активності з `data.activities` щоденника ТК. |
+| `LOG_RETENTION_DAYS` | дні | `30` | Ротація `tabcalorie_sync_log` за віком. |
+| `LOG_MAX_ROWS` | рядки | `2000` | Ротація `tabcalorie_sync_log` за кількістю рядків. |
+| `WRITE_QUEUE_TTL_DAYS` | дні | `7` | Очищення `tabcalorie_write_queue` за TTL. |
 
 ---
 
@@ -115,7 +124,19 @@ $cookie = join('; ', $resp['setCookiePairs']);
     "proteinTotal": 0,
     "fatTotal": 0,
     "energyTotal": 0,
-    "foodstuffCount": 0
+    "foodstuffCount": 0,
+    "activities": [
+      {
+        "id": "act_1",
+        "date": "20.11.2026",
+        "title": "Прогулянка",
+        "type": "walking",
+        "activityType": "walking",
+        "steps": 3200,
+        "energy": 140,
+        "duration": 1800
+      }
+    ]
   }
 }
 ```
@@ -144,6 +165,19 @@ $cookie = join('; ', $resp['setCookiePairs']);
 Тому GI і нотатки зберігаються **локально** у таблиці `tabcalorie_foods` і не
 перезаписуються синхронізацією.
 
+### Активність (`data.activities`, Health Connect)
+
+> [!NOTE]
+> У застосунку ТК увімкнено інтеграцію з **Health Connect**. ТК повертає дані
+> активності у полі `data.activities` щоденника: `steps` (кроки), `energy`
+> (спалені калорії), `title`, `type`, `activityType`, тривалість тощо. Плагін
+> лише **зчитує** ці дані з ТК і нічого не пише в Health Connect — інтеграція
+> в ТК одностороння: активність потрапляє в щоденник ТК, а плагін бере її звідти.
+
+За `ACTIVITY_ENABLED=1` (за замовчуванням) активність зберігається у таблиці
+`tabcalorie_activities` з унікальним ключем **дата + ID активності**, а добові
+суми `STEPS`, `ACTIVITY_KCAL`, `ACTIVITY_COUNT` агрегуються у `tabcalorie_days`.
+
 ---
 
 ## 4. Додаткові ендпоїнти (не використовуються за замовчуванням)
@@ -154,6 +188,11 @@ $cookie = join('; ', $resp['setCookiePairs']);
 | `/statistic/summary/.../get` | статистика |
 | `/autocomplete/foodstuff-activity-meal?query=` | пошук страв/активностей |
 | `/user/foodstuff/add/form/{id}` | форма додавання страви |
+
+> [!TIP]
+> З v1.2.0 ці ендпоїнти використовує форма довідника страв: autocomplete шукає
+> страву в ТК, а форма додавання повертає сиру відповідь, яка зберігається як
+> `SERVICE_JSON` разом зі службовими полями страви.
 
 ---
 
@@ -180,6 +219,11 @@ $cookie = join('; ', $resp['setCookiePairs']);
 ```
 
 Видалення: `GET /user/diary/foodstuff/delete/{id}`.
+
+З v1.2.0 значення `guid`, `url`, `unitGuid`, `unitOptions` і `multiplier` у тілі
+запиту беруться зі службових полів страви у `tabcalorie_foods` — `FOOD_ID`,
+`FOOD_URL`, `UNIT_GUID`, `UNIT_OPTIONS`, `DEFAULT_MULTIPLIER`, `DEFAULT_SLOT`,
+`SERVICE_JSON` — а не з жорстко заданих констант.
 
 Умови плагіна:
 
@@ -253,10 +297,11 @@ $cookie = join('; ', $resp['setCookiePairs']);
 | Таблиця | Ключ / призначення |
 |---|---|
 | `tabcalorie_entries` | унікальний ключ `date + slot + food_guid + unit_raw`; `source` = `tk`/`manual` |
-| `tabcalorie_foods` | довідник на 100 г; локальні GI/нотатки |
-| `tabcalorie_days` | добові підсумки |
-| `tabcalorie_sync_log` | час, тип, результат, HTTP-код, кількість рядків |
-| `tabcalorie_write_queue` | черга записів із підтвердженням |
+| `tabcalorie_foods` | довідник на 100 г; локальні GI/нотатки + службові поля `FOOD_ID`, `FOOD_URL`, `UNIT_GUID` (`0000000000000001`), `UNIT_OPTIONS`, `DEFAULT_MULTIPLIER`, `DEFAULT_SLOT` (1..6), `SERVICE_JSON` |
+| `tabcalorie_days` | добові підсумки; з v1.2.0 також `STEPS`, `ACTIVITY_KCAL`, `ACTIVITY_COUNT` |
+| `tabcalorie_activities` | активність із `data.activities`; унікальний ключ `дата + ID активності` |
+| `tabcalorie_sync_log` | час, тип, результат, HTTP-код, кількість рядків; ротація `LOG_RETENTION_DAYS` (30) / `LOG_MAX_ROWS` (2000) |
+| `tabcalorie_write_queue` | черга записів із підтвердженням; TTL `WRITE_QUEUE_TTL_DAYS` (7) |
 
 ### 8.3. Об'єкт `TabCalorie` (клас `STabCalorie`)
 
@@ -265,7 +310,23 @@ $cookie = join('; ', $resp['setCookiePairs']);
 `GroupDayCarbs`, `TotalCarbs`, `TotalKcal`, `TotalProtein`, `TotalFat`,
 `TotalFiber`, `TotalSugar`, `TotalXE`, `GI`, `Notes`, `Updated`.
 
-Читання: `gg('TabCalorie.TotalCarbs')`.
+Властивості, додані у v1.2.0:
+
+| Властивість | Опис |
+|---|---|
+| `status` | `1`, коли інтеграція здорова; `0` при будь-якій інтеграційній проблемі (наявний `LAST_ERROR`, відкритий circuit breaker) або коли вимкнено фоновий цикл (`SYNC_ENABLED=0` чи `cycle_tabcalorieRun` старший за ~10 хв). |
+| `raw` | JSON із усіма даними від початку останньої доби, за яку є хоча б один запис: сирий щоденник ТК + нормалізовані записи. |
+| `ActivitySteps`, `ActivityKcal`, `ActivityCount` | Агрегат активності (кроки, спалені ккал, кількість активностей) за останню заповнену добу. |
+
+Читання: `gg('TabCalorie.TotalCarbs')`, `gg('TabCalorie.status')`.
+
+### 8.4. Ротація логів і TTL черги (v1.2.0)
+
+- `tabcalorie_sync_log`: рядки старші за `LOG_RETENTION_DAYS` (30) або ті, що
+  перевищують `LOG_MAX_ROWS` (2000), видаляються під час cleanup (спочатку
+  найстаріші).
+- `tabcalorie_write_queue`: рядки старші за `WRITE_QUEUE_TTL_DAYS` (7 днів)
+  видаляються автоматично під час cleanup.
 
 > [!NOTE]
 > Добові норми `CALORIES_TARGET`, `PROTEIN_TARGET`, `FAT_TARGET`, `CARBS_TARGET`

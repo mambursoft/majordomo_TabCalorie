@@ -4,14 +4,14 @@ aliases: [TabCalorie, INSTALL.en, Installation]
 tags: [tabcalorie, majordomo, settings]
 lang: en
 plugin: tabcalorie
-version: 1.1.0
+version: 1.2.0
 ---
 
 # Installing TabCalorie
 
 [[INSTALL|Українська]] · [[INSTALL.en|English]] · [[INSTALL.ru|Русский]]
 
-Version 1.1.0 · 2026-11-20
+Version 1.2.0 · 2026-11-20
 
 This guide describes how to install the MajorDoMo plugin `tabcalorie` in two
 ways: via Market and manually from a `.tgz` archive.
@@ -121,10 +121,11 @@ HOME.md                      map of content (MOC)
 | Table | Purpose |
 |---|---|
 | `tabcalorie_entries` | food entries (date, slot, food, quantity × unit, macros, GI, notes, `source`, `synced_at`); unique key `date + slot + food_guid + unit_raw` |
-| `tabcalorie_foods` | food reference per 100 g |
-| `tabcalorie_days` | daily totals |
-| `tabcalorie_sync_log` | sync log without secrets |
-| `tabcalorie_write_queue` | queue of write-backs to TK with confirmation |
+| `tabcalorie_foods` | food reference per 100 g + service fields for write-back (`FOOD_ID`, `FOOD_URL`, `UNIT_GUID`, `UNIT_OPTIONS`, `DEFAULT_MULTIPLIER`, `DEFAULT_SLOT`, `SERVICE_JSON`) |
+| `tabcalorie_days` | daily totals, including `STEPS`, `ACTIVITY_KCAL`, `ACTIVITY_COUNT` |
+| `tabcalorie_activities` | activity from TK's `data.activities`; unique key — date + activity ID |
+| `tabcalorie_sync_log` | sync log without secrets; rotation `LOG_RETENTION_DAYS` / `LOG_MAX_ROWS` |
+| `tabcalorie_write_queue` | queue of write-backs to TK with confirmation; TTL `WRITE_QUEUE_TTL_DAYS` |
 
 ### 3.6. Set up the background cycle
 
@@ -162,6 +163,10 @@ Open the module admin page and fill in the configuration keys (stored in
 | `HOOK_PROPERTY` | trigger `Obj.Prop` | — |
 | `HOOK_DEBOUNCE_SEC` | debounce, sec | `60` |
 | `RETENTION_DAYS` | data retention | `1825` (5 years) |
+| `ACTIVITY_ENABLED` | `1` — import activity from TK; `0` — disable | `1` |
+| `LOG_RETENTION_DAYS` | log rotation by age, days | `30` |
+| `LOG_MAX_ROWS` | log rotation by row count | `2000` |
+| `WRITE_QUEUE_TTL_DAYS` | write queue TTL, days | `7` |
 | `LANGUAGE` | `uk` / `en` / `ru` | `uk` |
 | `GRAMS_PER_XE` | grams per bread unit | `10` |
 | `CALORIES_TARGET` | daily calorie target, kcal | `1800` |
@@ -208,6 +213,21 @@ Diagnostics **do not change data**. If something fails — see
 - [ ] Check **Diagnostics** → last successful sync and log.
 - [ ] Make sure the target progress bars on **Overview** are displayed correctly.
 
+### 4.3. What's new in v1.2.0
+
+- [ ] **Activity** tab: steps and burned kcal from TK's `data.activities`,
+  `ACTIVITY_ENABLED=1` (see [[USAGE.en|Usage]]).
+- [ ] Food form on the **Food reference** tab with service fields for write-back
+  to TK (see [[USAGE.en|Usage]]).
+- [ ] Object properties `status`, `raw`, `ActivitySteps`, `ActivityKcal`,
+  `ActivityCount` (see [[API.en|API and data formats]]).
+- [ ] `tabcalorie_sync_log` rotation (`LOG_RETENTION_DAYS=30`, `LOG_MAX_ROWS=2000`)
+  and `tabcalorie_write_queue` TTL (`WRITE_QUEUE_TTL_DAYS=7`).
+
+> [!NOTE]
+> Health Connect in TK is one-way: the plugin only reads activity from the TK
+> diary and writes nothing to Health Connect.
+
 ---
 
 ## 5. Update
@@ -227,7 +247,8 @@ Diagnostics **do not change data**. If something fails — see
 
 1. Admin → **Modules** → deactivate `tabcalorie`.
 2. Optionally drop tables `tabcalorie_entries`, `tabcalorie_foods`,
-   `tabcalorie_days`, `tabcalorie_sync_log`, `tabcalorie_write_queue`.
+   `tabcalorie_days`, `tabcalorie_activities`, `tabcalorie_sync_log`,
+   `tabcalorie_write_queue`.
 3. Remove `modules/tabcalorie/`, `templates/tabcalorie/`,
    `languages/tabcalorie_*.php`, `scripts/cycle_tabcalorie.php`,
    `img/modules/tabcalorie.png`.

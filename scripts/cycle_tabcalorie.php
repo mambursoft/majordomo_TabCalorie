@@ -66,5 +66,6 @@ while (true) {
 
     $module->checkHook();
     setGlobal('cycle_tabcalorieRun', date('Y-m-d H:i:s'));
+    setGlobal('cycle_tabcalorieRunTs', time());
     sleep(30);
 }

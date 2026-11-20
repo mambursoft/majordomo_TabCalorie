@@ -4,7 +4,7 @@ aliases: [TabCalorie, SECURITY.en, Security model]
 tags: [tabcalorie, majordomo, security]
 lang: en
 plugin: tabcalorie
-version: 1.1.0
+version: 1.2.0
 ---
 
 # TabCalorie Security

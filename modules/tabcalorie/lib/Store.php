@@ -95,6 +95,7 @@ class TabCalorieStore
                     'SLOT_TITLE' => $slotTitle,
                     'TITLE' => $title,
                     'FOOD_GUID' => $foodGuid,
+                    'FOOD_URL' => isset($item['url']) ? (string)$item['url'] : '',
                     'UNIT_RAW' => $unitRaw,
                     'QUANTITY' => $quantity,
                     'UNIT' => $unit,
@@ -111,6 +112,68 @@ class TabCalorieStore
             }
         }
         return $rows;
+    }
+
+    /**
+     * Parse the `activities` array returned by the diary endpoint.
+     * Health Connect activity is synced INTO TK, so this is read-only here.
+     */
+    public static function parseActivities($diary, $date)
+    {
+        $rows = array();
+        if (!is_array($diary) || empty($diary['activities']) || !is_array($diary['activities'])) {
+            return $rows;
+        }
+        foreach ($diary['activities'] as $idx => $a) {
+            if (!is_array($a)) {
+                continue;
+            }
+            $id = isset($a['id']) && $a['id'] !== '' ? (string)$a['id'] : '';
+            if ($id === '' && isset($a['guidType'])) {
+                $id = (string)$a['guidType'];
+            }
+            $title = isset($a['title']) ? trim((string)$a['title']) : '';
+            if ($id === '' && $title === '') {
+                continue;
+            }
+            if ($id === '') {
+                $id = md5($title . '|' . $date . '|' . $idx);
+            }
+            $rows[] = array(
+                'ACTIVITY_KEY' => md5($date . '|' . $id),
+                'ACTIVITY_DATE' => $date,
+                'ACTIVITY_ID' => $id,
+                'TITLE' => $title,
+                'TYPE' => isset($a['type']) ? (string)$a['type'] : 'activity',
+                'ACTIVITY_TYPE' => isset($a['activityType']) ? (string)$a['activityType'] : '',
+                'STEPS' => self::round1(self::num(isset($a['steps']) ? $a['steps'] : 0)),
+                'ENERGY' => self::round1(self::num(isset($a['energy']) ? $a['energy'] : 0)),
+                'UNIT' => isset($a['energyUnit']) ? (string)$a['energyUnit'] : 'kcal',
+                'DURATION' => self::round1(self::num(isset($a['duration']) ? $a['duration'] : 0)),
+                'RAW_JSON' => mb_substr(json_encode($a, JSON_UNESCAPED_UNICODE), 0, 4000),
+                'SYNCED_AT' => date('Y-m-d H:i:s'),
+            );
+        }
+        return $rows;
+    }
+
+    /** Idempotent insert/update of activity rows. */
+    public static function saveActivities($rows)
+    {
+        $count = 0;
+        foreach ($rows as $row) {
+            $key = DBSafe($row['ACTIVITY_KEY']);
+            $old = SQLSelectOne("SELECT ID FROM tabcalorie_activities WHERE ACTIVITY_KEY='" . $key . "'");
+            $record = $row;
+            if ($old['ID']) {
+                $record['ID'] = $old['ID'];
+                SQLUpdate('tabcalorie_activities', $record);
+            } else {
+                SQLInsert('tabcalorie_activities', $record);
+            }
+            $count++;
+        }
+        return $count;
     }
 
     /** Idempotent insert/update of parsed rows. Returns affected row count. */
@@ -147,6 +210,9 @@ class TabCalorieStore
                 FROM tabcalorie_entries WHERE ENTRY_DATE='" . DBSafe($date) . "'";
         $sum = SQLSelectOne($sql);
         $carbs = self::round1(isset($sum['CARB']) ? $sum['CARB'] : 0);
+        $old = SQLSelectOne("SELECT * FROM tabcalorie_days WHERE DAY_DATE='" . DBSafe($date) . "'");
+        $act = SQLSelectOne("SELECT SUM(STEPS) AS S, SUM(ENERGY) AS E, COUNT(*) AS N
+                             FROM tabcalorie_activities WHERE ACTIVITY_DATE='" . DBSafe($date) . "'");
         $day = array(
             'DAY_DATE' => $date,
             'ENERGY' => self::round1(isset($sum['ENERGY']) ? $sum['ENERGY'] : 0),
@@ -157,6 +223,10 @@ class TabCalorieStore
             'SUGAR' => self::round1(isset($sum['SUGAR']) ? $sum['SUGAR'] : 0),
             'FOODSTUFF_COUNT' => (int)(isset($sum['CNT']) ? $sum['CNT'] : 0),
             'SLOT_COUNT' => (int)(isset($sum['SLOTS']) ? $sum['SLOTS'] : 0),
+            'STEPS' => self::round1(isset($act['S']) ? $act['S'] : 0),
+            'ACTIVITY_KCAL' => self::round1(isset($act['E']) ? $act['E'] : 0),
+            'ACTIVITY_COUNT' => (int)(isset($act['N']) ? $act['N'] : 0),
+            'RAW_JSON' => $old['RAW_JSON'],
             'UPDATED' => date('Y-m-d H:i:s'),
         );
         // Keep notes from the diary slot level (API has no per-food notes).
@@ -177,7 +247,10 @@ class TabCalorieStore
             }
         }
         $day['NOTES'] = mb_substr(implode(' | ', $notes), 0, 1000);
-        $old = SQLSelectOne("SELECT ID FROM tabcalorie_days WHERE DAY_DATE='" . DBSafe($date) . "'");
+        if (is_array($diary)) {
+            $raw = json_encode($diary, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            $day['RAW_JSON'] = mb_substr((string)$raw, 0, 2000000);
+        }
         if ($old['ID']) {
             $day['ID'] = $old['ID'];
             SQLUpdate('tabcalorie_days', $day);
@@ -246,6 +319,9 @@ class TabCalorieStore
             'fiber' => self::round1(isset($day['FIBER']) ? $day['FIBER'] : 0),
             'sugar' => self::round1(isset($day['SUGAR']) ? $day['SUGAR'] : 0),
             'notes' => isset($day['NOTES']) ? (string)$day['NOTES'] : '',
+            'steps' => self::round1(isset($day['STEPS']) ? $day['STEPS'] : 0),
+            'activity_kcal' => self::round1(isset($day['ACTIVITY_KCAL']) ? $day['ACTIVITY_KCAL'] : 0),
+            'activity_count' => (int)(isset($day['ACTIVITY_COUNT']) ? $day['ACTIVITY_COUNT'] : 0),
         );
     }
 
@@ -281,7 +357,7 @@ class TabCalorieStore
     }
 
     /** Return the MajorDoMo object with per-meal aggregates for the last filled day. */
-    public static function updateObject($overview, $gramsPerXe = 10)
+    public static function updateObject($overview, $gramsPerXe = 10, $cfg = array())
     {
         if (!function_exists('addClass') || !function_exists('getObject')) {
             return false;
@@ -292,7 +368,8 @@ class TabCalorieStore
         }
         $props = array('LastDate', 'Partial', 'FilledSlots', 'GroupMainCarbs', 'GroupSnacksCarbs',
             'GroupDayCarbs', 'TotalCarbs', 'TotalKcal', 'TotalProtein', 'TotalFat', 'TotalFiber',
-            'TotalSugar', 'TotalXE', 'GI', 'Notes', 'Updated');
+            'TotalSugar', 'TotalXE', 'GI', 'Notes', 'Updated', 'Status', 'Raw',
+            'ActivitySteps', 'ActivityKcal', 'ActivityCount');
         for ($i = 1; $i <= 6; $i++) {
             $props[] = 'Slot' . $i . 'Carbs';
             $props[] = 'Slot' . $i . 'Kcal';
@@ -325,6 +402,11 @@ class TabCalorieStore
             'GI' => self::averageGi($overview['date']),
             'Notes' => $overview['notes'],
             'Updated' => date('Y-m-d H:i:s'),
+            'Status' => self::computeStatus($cfg),
+            'Raw' => self::rawPayload($overview['date']),
+            'ActivitySteps' => isset($overview['steps']) ? $overview['steps'] : 0,
+            'ActivityKcal' => isset($overview['activity_kcal']) ? $overview['activity_kcal'] : 0,
+            'ActivityCount' => isset($overview['activity_count']) ? $overview['activity_count'] : 0,
         );
         for ($i = 1; $i <= 6; $i++) {
             $values['Slot' . $i . 'Carbs'] = $overview['slots'][$i]['carbs'];
@@ -335,6 +417,21 @@ class TabCalorieStore
         foreach ($values as $name => $value) {
             $obj->setProperty($name, $value, 0, 'tabcalorie');
         }
+        return true;
+    }
+
+    /** Lightweight refresh of Status/Raw without a full sync (page loads, failures). */
+    public static function refreshStatusObject($cfg)
+    {
+        if (!function_exists('getObject')) {
+            return false;
+        }
+        $obj = @getObject('TabCalorie');
+        if (!$obj) {
+            return false;
+        }
+        $obj->setProperty('Status', self::computeStatus($cfg), 0, 'tabcalorie');
+        $obj->setProperty('Raw', self::rawPayload(), 0, 'tabcalorie');
         return true;
     }
 
@@ -361,8 +458,9 @@ class TabCalorieStore
     /** Rebuild the per-100 g food dictionary from imported entries. */
     public static function rebuildFoods()
     {
-        $rows = SQLSelect("SELECT FOOD_GUID, TITLE, UNIT,
-                    SUM(QUANTITY) AS Q, SUM(ENERGY) AS E, SUM(PROTEIN) AS P, SUM(FAT) AS F,
+        $rows = SQLSelect("SELECT FOOD_GUID, TITLE, UNIT, MAX(FOOD_URL) AS FOOD_URL,
+                    SUM(QUANTITY) AS Q, COUNT(*) AS CNT,
+                    SUM(ENERGY) AS E, SUM(PROTEIN) AS P, SUM(FAT) AS F,
                     SUM(CARBOHYDRATE) AS C, SUM(FIBER) AS FI, SUM(SUGAR) AS S
                    FROM tabcalorie_entries
                    GROUP BY FOOD_GUID, TITLE, UNIT");
@@ -375,6 +473,7 @@ class TabCalorieStore
             $k = 100 / $q;
             $rec = array(
                 'FOOD_GUID' => $r['FOOD_GUID'],
+                'FOOD_ID' => $r['FOOD_GUID'],
                 'TITLE' => $r['TITLE'],
                 'UNIT' => $r['UNIT'],
                 'ENERGY_100' => self::round1(self::num($r['E']) * $k),
@@ -383,24 +482,84 @@ class TabCalorieStore
                 'CARB_100' => self::round1(self::num($r['C']) * $k),
                 'FIBER_100' => self::round1(self::num($r['FI']) * $k),
                 'SUGAR_100' => self::round1(self::num($r['S']) * $k),
+                'FOOD_URL' => isset($r['FOOD_URL']) ? $r['FOOD_URL'] : '',
                 'UPDATED' => date('Y-m-d H:i:s'),
             );
-            $old = SQLSelectOne("SELECT ID, GI, NOTES FROM tabcalorie_foods WHERE FOOD_GUID='" . DBSafe($r['FOOD_GUID']) . "'");
+            $old = SQLSelectOne("SELECT * FROM tabcalorie_foods WHERE FOOD_GUID='" . DBSafe($r['FOOD_GUID']) . "'");
             if ($old['ID']) {
                 $rec['ID'] = $old['ID'];
-                if (isset($old['GI'])) {
-                    $rec['GI'] = $old['GI'];
-                }
-                if (isset($old['NOTES'])) {
-                    $rec['NOTES'] = $old['NOTES'];
+                // User-entered service data always wins over imported guesses.
+                foreach (array('GI', 'NOTES', 'FOOD_ID', 'FOOD_URL', 'UNIT_GUID',
+                    'UNIT_OPTIONS', 'DEFAULT_MULTIPLIER', 'DEFAULT_SLOT', 'SERVICE_JSON') as $keep) {
+                    if (isset($old[$keep]) && $old[$keep] !== '') {
+                        $rec[$keep] = $old[$keep];
+                    }
                 }
                 SQLUpdate('tabcalorie_foods', $rec);
             } else {
+                $rec['UNIT_GUID'] = '0000000000000001';
+                $rec['DEFAULT_MULTIPLIER'] = self::round1($q / max(1, (int)$r['CNT']));
+                $rec['DEFAULT_SLOT'] = 0;
+                $rec['UNIT_OPTIONS'] = '';
                 SQLInsert('tabcalorie_foods', $rec);
             }
             $n++;
         }
         return $n;
+    }
+
+    /** Full food record by ID (used by the write-back form and queue). */
+    public static function foodRecord($id)
+    {
+        return SQLSelectOne("SELECT * FROM tabcalorie_foods WHERE ID=" . (int)$id);
+    }
+
+    /** Create or update a food record from the admin form. */
+    public static function saveFoodRecord($data)
+    {
+        $id = (int)(isset($data['ID']) ? $data['ID'] : 0);
+        $old = $id ? self::foodRecord($id) : array();
+        $rec = array(
+            'FOOD_GUID' => mb_substr(trim((string)(isset($data['FOOD_GUID']) ? $data['FOOD_GUID'] : '')), 0, 64),
+            'FOOD_ID' => mb_substr(trim((string)(isset($data['FOOD_ID']) ? $data['FOOD_ID'] : '')), 0, 64),
+            'TITLE' => mb_substr(trim((string)(isset($data['TITLE']) ? $data['TITLE'] : '')), 0, 255),
+            'UNIT' => mb_substr(trim((string)(isset($data['UNIT']) ? $data['UNIT'] : 'g')), 0, 32),
+            'FOOD_URL' => mb_substr(trim((string)(isset($data['FOOD_URL']) ? $data['FOOD_URL'] : '')), 0, 255),
+            'UNIT_GUID' => mb_substr(trim((string)(isset($data['UNIT_GUID']) ? $data['UNIT_GUID'] : '0000000000000001')), 0, 64),
+            'UNIT_OPTIONS' => mb_substr((string)(isset($data['UNIT_OPTIONS']) ? $data['UNIT_OPTIONS'] : ''), 0, 8000),
+            'DEFAULT_MULTIPLIER' => self::round1(self::num(isset($data['DEFAULT_MULTIPLIER']) ? $data['DEFAULT_MULTIPLIER'] : 100)),
+            'DEFAULT_SLOT' => max(0, min(6, (int)(isset($data['DEFAULT_SLOT']) ? $data['DEFAULT_SLOT'] : 0))),
+            'GI' => max(0, min(200, self::num(isset($data['GI']) ? $data['GI'] : 0))),
+            'NOTES' => mb_substr(strip_tags((string)(isset($data['NOTES']) ? $data['NOTES'] : '')), 0, 1000),
+            'ENERGY_100' => self::round1(self::num(isset($data['ENERGY_100']) ? $data['ENERGY_100'] : 0)),
+            'PROTEIN_100' => self::round1(self::num(isset($data['PROTEIN_100']) ? $data['PROTEIN_100'] : 0)),
+            'FAT_100' => self::round1(self::num(isset($data['FAT_100']) ? $data['FAT_100'] : 0)),
+            'CARB_100' => self::round1(self::num(isset($data['CARB_100']) ? $data['CARB_100'] : 0)),
+            'FIBER_100' => self::round1(self::num(isset($data['FIBER_100']) ? $data['FIBER_100'] : 0)),
+            'SUGAR_100' => self::round1(self::num(isset($data['SUGAR_100']) ? $data['SUGAR_100'] : 0)),
+            'UPDATED' => date('Y-m-d H:i:s'),
+        );
+        if ($rec['FOOD_GUID'] === '') {
+            $rec['FOOD_GUID'] = md5($rec['TITLE'] . '|' . $rec['FOOD_URL']);
+        }
+        if ($rec['FOOD_ID'] === '') {
+            $rec['FOOD_ID'] = $rec['FOOD_GUID'];
+        }
+        if (isset($old['SERVICE_JSON']) && $old['SERVICE_JSON'] !== '') {
+            $rec['SERVICE_JSON'] = $old['SERVICE_JSON'];
+        }
+        if ($old['ID']) {
+            $rec['ID'] = $old['ID'];
+            SQLUpdate('tabcalorie_foods', $rec);
+            return (int)$old['ID'];
+        }
+        return (int)SQLInsert('tabcalorie_foods', $rec);
+    }
+
+    public static function deleteFoodRecord($id)
+    {
+        SQLExec("DELETE FROM tabcalorie_foods WHERE ID=" . (int)$id);
+        return true;
     }
 
     public static function log($kind, $status, $httpCode, $rows, $message)
@@ -416,14 +575,88 @@ class TabCalorieStore
         return SQLInsert('tabcalorie_sync_log', $rec);
     }
 
-    public static function cleanup($retentionDays)
+    /**
+     * Retention cleanup: entries/days by data retention, sync log by age AND
+     * row count (rotation), write queue by relevance period (TTL).
+     */
+    public static function cleanup($retentionDays, $cfg = array())
     {
         $days = max(30, (int)$retentionDays);
         $cut = date('Y-m-d', time() - $days * 86400);
         SQLExec("DELETE FROM tabcalorie_entries WHERE ENTRY_DATE<'" . DBSafe($cut) . "'");
         SQLExec("DELETE FROM tabcalorie_days WHERE DAY_DATE<'" . DBSafe($cut) . "'");
-        SQLExec("DELETE FROM tabcalorie_sync_log WHERE RUN_AT<'" . DBSafe($cut) . "'");
+        SQLExec("DELETE FROM tabcalorie_activities WHERE ACTIVITY_DATE<'" . DBSafe($cut) . "'");
+
+        $logDays = max(1, (int)(isset($cfg['LOG_RETENTION_DAYS']) ? $cfg['LOG_RETENTION_DAYS'] : 30));
+        $logCut = date('Y-m-d H:i:s', time() - $logDays * 86400);
+        SQLExec("DELETE FROM tabcalorie_sync_log WHERE RUN_AT<'" . DBSafe($logCut) . "'");
+        $maxRows = max(100, (int)(isset($cfg['LOG_MAX_ROWS']) ? $cfg['LOG_MAX_ROWS'] : 2000));
+        $cnt = SQLSelectOne("SELECT COUNT(*) AS N FROM tabcalorie_sync_log");
+        if ((int)$cnt['N'] > $maxRows) {
+            SQLExec("DELETE FROM tabcalorie_sync_log ORDER BY ID ASC LIMIT " . ((int)$cnt['N'] - $maxRows));
+        }
+
+        $ttl = max(1, (int)(isset($cfg['WRITE_QUEUE_TTL_DAYS']) ? $cfg['WRITE_QUEUE_TTL_DAYS'] : 7));
+        $queueCut = date('Y-m-d H:i:s', time() - $ttl * 86400);
+        SQLExec("DELETE FROM tabcalorie_write_queue WHERE CREATED_AT<'" . DBSafe($queueCut) . "'");
         return $cut;
+    }
+
+    /** All activity records for a day. */
+    public static function activityRows($date)
+    {
+        return SQLSelect("SELECT * FROM tabcalorie_activities WHERE ACTIVITY_DATE='" . DBSafe($date) . "'
+                          ORDER BY ID");
+    }
+
+    /**
+     * Full raw payload for the last day that has at least one record:
+     * original TK diary JSON plus normalized entries and activities.
+     */
+    public static function rawPayload($date = null)
+    {
+        if (!$date) {
+            $date = self::lastFilledDate();
+        }
+        $day = SQLSelectOne("SELECT RAW_JSON FROM tabcalorie_days WHERE DAY_DATE='" . DBSafe($date) . "'");
+        $diary = array();
+        if (!empty($day['RAW_JSON'])) {
+            $decoded = json_decode($day['RAW_JSON'], true);
+            if (is_array($decoded)) {
+                $diary = $decoded;
+            }
+        }
+        $payload = array(
+            'date' => $date,
+            'diary' => $diary,
+            'entries' => SQLSelect("SELECT * FROM tabcalorie_entries WHERE ENTRY_DATE='" . DBSafe($date) . "'
+                                    ORDER BY SLOT_ID, ID"),
+            'activities' => self::activityRows($date),
+        );
+        $json = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        return mb_substr((string)$json, 0, 2000000);
+    }
+
+    /**
+     * Integration status for the object: 0 on any problem or when the background
+     * cycle is disabled/stale, 1 when everything looks healthy.
+     */
+    public static function computeStatus($cfg)
+    {
+        if ((int)(isset($cfg['SYNC_ENABLED']) ? $cfg['SYNC_ENABLED'] : 0) !== 1) {
+            return 0;
+        }
+        if (!empty($cfg['LAST_ERROR'])) {
+            return 0;
+        }
+        if ((int)(isset($cfg['CIRCUIT_UNTIL']) ? $cfg['CIRCUIT_UNTIL'] : 0) > time()) {
+            return 0;
+        }
+        $last = (int)getGlobal('cycle_tabcalorieRunTs');
+        if ($last <= 0 || time() - $last > 600) {
+            return 0;
+        }
+        return 1;
     }
 
     public static function dayRows($from, $to)

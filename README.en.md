@@ -4,7 +4,7 @@ aliases: [TabCalorie, Home, Readme]
 tags: [tabcalorie, majordomo, docs]
 lang: en
 plugin: tabcalorie
-version: 1.1.0
+version: 1.2.0
 ---
 
 # TabCalorie
@@ -12,7 +12,7 @@ version: 1.1.0
 > [!NOTE]
 > A MajorDoMo plugin for local carbohydrate tracking based on data from the
 > "Calorie Table" app (TK / Dine4Fit / `tablycjakalorijnosti.com.ua`).
-> Default documentation language: Ukrainian. Version 1.1.0, 2026-11-20.
+> Default documentation language: Ukrainian. Version 1.2.0, 2026-11-20.
 
 [[README|Українська]] · [[README.en|English]] · [[README.ru|Русский]]
 
@@ -57,9 +57,19 @@ TabCalorie uses for import (see [[perplexity_research|API research]]).
 - Idempotency: unique key `(date, slot, food guid, unit)` — repeated runs create no duplicates.
 - Overview of the **last filled day** with empty slots, not data pulled from another day.
 - Local food reference (per 100 g) with local GI and notes (the TK API has neither).
+  Service fields (`FOOD_ID`, `FOOD_URL`, `UNIT_GUID`, `UNIT_OPTIONS`,
+  `DEFAULT_MULTIPLIER`, `DEFAULT_SLOT`, `SERVICE_JSON`) are used for write-back
+  to TK instead of hardcoded values; the **Food reference** tab has an add/edit
+  food form and TK autocomplete search.
+- Activity from the diary's `data.activities` field (Health Connect data in TK):
+  steps, burned kcal, a new **Activity** tab and CSV columns (`ACTIVITY_ENABLED`).
+  Health Connect in TK is one-way — the plugin only reads data from there.
 - Daily targets (calories, protein, fat, carbs) and progress bars for each of the
   6 meals on the **Overview** tab; exceeding a target is highlighted in color.
-- MajorDoMo object `TabCalorie` (class `STabCalorie`) with ready-made aggregates.
+- MajorDoMo object `TabCalorie` (class `STabCalorie`) with ready-made aggregates,
+  including `status`, `raw`, `ActivitySteps`, `ActivityKcal`, `ActivityCount`.
+- `tabcalorie_sync_log` rotation (`LOG_RETENTION_DAYS`, `LOG_MAX_ROWS`) and write
+  queue TTL (`WRITE_QUEUE_TTL_DAYS`).
 - CSV export (UTF-8 BOM, `;` delimiter) for day / week / month / year.
 - Connection diagnostics without changing data.
 - Optional basic Nightscout push to `/api/v1/treatments.json`.
@@ -141,6 +151,10 @@ written to logs or the repository.
 | `HOOK_PROPERTY` | `Obj.Prop` | — | Trigger property for the hook. |
 | `HOOK_DEBOUNCE_SEC` | seconds | `60` | Debounce to avoid loops and extra calls. |
 | `RETENTION_DAYS` | days | `1825` (5 years) | Data retention; expired rows are purged daily. |
+| `ACTIVITY_ENABLED` | 0/1 | `1` | Import activity from the TK diary's `data.activities` (Health Connect data inside TK), enabled by default. |
+| `LOG_RETENTION_DAYS` | days | `30` | `tabcalorie_sync_log` rotation: delete rows older than N days. |
+| `LOG_MAX_ROWS` | rows | `2000` | `tabcalorie_sync_log` rotation: row cap (oldest rows are removed first). |
+| `WRITE_QUEUE_TTL_DAYS` | days | `7` | `tabcalorie_write_queue` cleanup: delete expired rows during cleanup. |
 | `LANGUAGE` | `uk` \| `en` \| `ru` | `uk` | Interface language. |
 | `GRAMS_PER_XE` | number | `10` | Grams of carbs per bread unit (10 or 12 — per doctor). |
 | `CALORIES_TARGET` | kcal | `1800` | Daily calorie target, kcal. |
@@ -172,14 +186,15 @@ DNS/TLS/HTTP, login, cookies, endpoint availability, JSON parsing.
 
 ## Usage
 
-The public plugin page (`run()` + `templates/tabcalorie/tabcalorie.html`) has six tabs:
+The public plugin page (`run()` + `templates/tabcalorie/tabcalorie.html`) has seven tabs:
 
 | Tab | What it does |
 |---|---|
 | **Overview** | Last filled day: 6 slots, meal groups, daily totals, bread units, % of target, remaining allowance, target progress bars. Default tab when configured. |
+| **Activity** | Steps and burned calories for the last filled day plus a 7-day overview; data from the TK diary's `data.activities` (Health Connect, read-only). |
 | **History** | Daily totals for a period, comparison with previous days, trend and deviation from target. |
-| **Food reference** | Local food list with per-100 g values; GI and notes are edited here (not in the API). |
-| **Export** | CSV for day / week / month / year, UTF-8 BOM, `;` delimiter, `DD.MM.YYYY` dates; optional anonymisation. |
+| **Food reference** | Local food list with per-100 g values; GI and notes; add/edit food form with service fields and TK autocomplete search. |
+| **Export** | CSV for day / week / month / year, UTF-8 BOM, `;` delimiter, `DD.MM.YYYY` dates; now with steps and burned kcal; optional anonymisation. |
 | **Diagnostics** | Last sync state, sync log, explanation of common errors, "Check connection" result. |
 | **Instructions** | Short uk/en/ru instructions (including "Forgot password?"). |
 
@@ -190,6 +205,39 @@ The public plugin page (`run()` + `templates/tabcalorie/tabcalorie.html`) has si
 
 On **Overview**, the **"Create typical chart"** button generates a consumption
 chart using the standard MajorDoMo mechanism (Highcharts/pChart).
+
+### Activity tab
+
+With `ACTIVITY_ENABLED=1` (default), the plugin reads activity records from the
+TK diary's `data.activities` field (`steps`, `energy`, `title`, `type`,
+`activityType`, duration). Each activity is stored in `tabcalorie_activities`
+with a unique key of **date + activity ID**, while the daily sums `STEPS`,
+`ACTIVITY_KCAL`, `ACTIVITY_COUNT` go to `tabcalorie_days`.
+
+The tab shows:
+
+- [ ] a daily slice: steps, burned kcal and the list of activities for the last filled day;
+- [ ] a 7-day overview: steps and kcal per day;
+- [ ] the same steps and burned kcal are added to the CSV export.
+
+> [!WARNING]
+> Health Connect in TK is one-way: activity flows into the TK diary and the
+> plugin only reads it there. The plugin **writes nothing** to Health Connect.
+
+### Food form in the reference
+
+The **Food reference** tab provides:
+
+- [ ] an add/edit food form: name, ID, URL, unit, grams, slot, macros/kcal per 100 g, GI, notes;
+- [ ] food search via TK autocomplete (`/autocomplete/foodstuff-activity-meal?query=`);
+- [ ] service fields: `FOOD_ID` (guid for the API), `FOOD_URL` (`potraviny/...` path),
+  `UNIT_GUID` (default `0000000000000001`), `UNIT_OPTIONS` (JSON of available
+  units with multipliers), `DEFAULT_MULTIPLIER` (default grams), `DEFAULT_SLOT`
+  (1..6), `SERVICE_JSON` (raw TK form response).
+
+> [!TIP]
+> Write-back to TK uses these food service fields instead of hardcoded values
+> (`guid`, `url`, `unitGuid`, `unitOptions`, `multiplier`).
 
 ### MajorDoMo object `TabCalorie`
 
@@ -206,6 +254,22 @@ Class `STabCalorie`. Read properties via `gg('TabCalorie.Property')`.
 | `GroupSnacksCarbs` | Slots 2+4+6 (snacks). |
 | `GroupDayCarbs` | Daily carb total. |
 | `TotalCarbs`, `TotalKcal`, `TotalProtein`, `TotalFat`, `TotalFiber`, `TotalSugar`, `TotalXE`, `GI`, `Notes`, `Updated` | Daily totals, bread units, GI, notes, update time. |
+| `status` | `1` when the integration is healthy; `0` on any integration problem (`LAST_ERROR` set, an open circuit breaker) or when the background cycle is disabled (`SYNC_ENABLED=0` or `cycle_tabcalorieRun` older than ~10 minutes). |
+| `raw` | JSON with all data from the beginning of the last day that has at least one record: raw TK diary plus normalized entries. |
+| `ActivitySteps`, `ActivityKcal`, `ActivityCount` | Activity aggregates (steps, burned kcal, activity count) for the last filled day. |
+
+> [!NOTE]
+> `status=0` means any integration problem or a stopped background cycle — check
+> `LAST_ERROR`, `CIRCUIT_UNTIL`, `SYNC_ENABLED` and the last `cycle_tabcalorieRun`
+> time (no older than ~10 minutes). `raw` is intended for diagnostics and holds
+> raw TK data together with normalized entries.
+
+### Database maintenance (v1.2.0)
+
+- [ ] `tabcalorie_sync_log`: rotation by `LOG_RETENTION_DAYS` (30 days) and
+  `LOG_MAX_ROWS` (2000 rows); oldest rows are removed first.
+- [ ] `tabcalorie_write_queue`: rows older than `WRITE_QUEUE_TTL_DAYS` (7 days)
+  are deleted automatically during cleanup.
 
 ---
 
@@ -214,10 +278,11 @@ Class `STabCalorie`. Read properties via `gg('TabCalorie.Property')`.
 | Table | Purpose |
 |---|---|
 | `tabcalorie_entries` | Individual food entries: date, slot, food, quantity × unit, macros/fiber/sugar/kcal, GI, notes, `source` (`tk`/`manual`), `synced_at`. Unique key `date + slot + food_guid + unit_raw`. |
-| `tabcalorie_foods` | Unique food reference with values **per 100 g**. |
-| `tabcalorie_days` | Daily totals for fast Overview. |
-| `tabcalorie_sync_log` | Time, type, result, HTTP code, row count — **no secrets**. |
-| `tabcalorie_write_queue` | Queue of write-backs to TK with confirmation (`WRITEBACK_*`). |
+| `tabcalorie_foods` | Unique food reference with values **per 100 g** and service fields `FOOD_ID`, `FOOD_URL`, `UNIT_GUID` (`0000000000000001`), `UNIT_OPTIONS`, `DEFAULT_MULTIPLIER`, `DEFAULT_SLOT` (1..6), `SERVICE_JSON`. |
+| `tabcalorie_days` | Daily totals for fast Overview, including `STEPS`, `ACTIVITY_KCAL`, `ACTIVITY_COUNT`. |
+| `tabcalorie_activities` | Activity from TK's `data.activities`; unique key — date + activity ID. |
+| `tabcalorie_sync_log` | Time, type, result, HTTP code, row count — **no secrets**; rotation by `LOG_RETENTION_DAYS` / `LOG_MAX_ROWS`. |
+| `tabcalorie_write_queue` | Queue of write-backs to TK with confirmation (`WRITEBACK_*`); TTL `WRITE_QUEUE_TTL_DAYS`. |
 
 ---
 
@@ -229,7 +294,12 @@ Class `STabCalorie`. Read properties via `gg('TabCalorie.Property')`.
   back in the `Cookie` header.
 - Diary: `GET /user/diary/DD.MM.YYYY/get?format=json` →
   `{code:0, data:{times:[6 slots], carbohydrateTotal, sugarTotal, fiberTotal, proteinTotal, fatTotal, energyTotal, …}}`.
-- **GI and per-dish notes are not in the API** — they are kept locally in the reference.
+- Activity (v1.2.0): TK returns `data.activities` (`steps`, `energy`, `title`,
+  `type`, `activityType`, duration) — data from TK's enabled Health Connect
+  integration. With `ACTIVITY_ENABLED=1` it is imported into
+  `tabcalorie_activities`. Health Connect is one-way: the plugin writes nothing to it.
+- **GI and per-dish notes are not in the API** — they are kept locally in the
+  reference, which now also stores the food's service fields for write-back.
 - Write-back to TK is **unofficial**: only with `WRITEBACK_ENABLED=1` and
   `WRITEBACK_CONFIRM=1`, via a separate queue. Libraries label such access
   read-only and advise "don't hammer the site".
@@ -285,7 +355,9 @@ password will be emailed to you. The phone app keeps working.
 Because the plugin shows the **last filled day** and does not pull slots from other days.
 
 **Why aren't carbs pulled automatically from Health Connect / Google Fit?**
-Because these TK integrations are one-way and do not export macros. This plugin is needed.
+Because these TK integrations are one-way and do not export macros. Since v1.2.0
+the plugin reads only activity from TK (`data.activities`: steps and burned kcal,
+`ACTIVITY_ENABLED`); carbs are still imported by this plugin from the TK diary.
 
 **How many grams per bread unit?**
 10 by default. If your doctor counts 12 — change `GRAMS_PER_XE`.
@@ -296,6 +368,11 @@ Yes, by default: `WRITEBACK_ENABLED=0`. Even when enabled it requires confirmati
 
 **Is data stored in the cloud?**
 No. All data stays local in your MajorDoMo DB. The TK cloud is read-only for the diary.
+
+**What does `TabCalorie.status = 0` mean?**
+An integration problem or a stopped background cycle: check `LAST_ERROR`,
+`CIRCUIT_UNTIL`, `SYNC_ENABLED` and the `cycle_tabcalorieRun` time (no older than
+~10 minutes). The `raw` property holds raw TK data and normalized entries for diagnostics.
 
 ---
 

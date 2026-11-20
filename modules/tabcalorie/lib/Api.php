@@ -257,6 +257,32 @@ class TabCalorieApi
         return $this->envelope($response, 'food form');
     }
 
+    /** Unit options from the food dictionary, with a safe gram fallback. */
+    private function unitOptions($params)
+    {
+        if (isset($params['unitOptions'])) {
+            $decoded = is_string($params['unitOptions'])
+                ? json_decode($params['unitOptions'], true) : $params['unitOptions'];
+            if (is_array($decoded) && $decoded) {
+                $out = array();
+                foreach ($decoded as $u) {
+                    if (!is_array($u) || !isset($u['id'])) {
+                        continue;
+                    }
+                    $out[] = array(
+                        'id' => (string)$u['id'],
+                        'title' => isset($u['title']) ? (string)$u['title'] : '1 g',
+                        'multiplier' => isset($u['multiplier']) ? (float)$u['multiplier'] : 1,
+                    );
+                }
+                if ($out) {
+                    return $out;
+                }
+            }
+        }
+        return array(array('id' => '0000000000000001', 'title' => '1 g', 'multiplier' => 1));
+    }
+
     /**
      * Write a food entry back to TK. IMPORTANT: unofficial endpoint.
      * Must only be called after explicit user confirmation.
@@ -273,12 +299,9 @@ class TabCalorieApi
             'date' => date('d.m.Y', strtotime($params['date'])),
             'multiplier' => (string)(isset($params['multiplier']) ? $params['multiplier'] : '100'),
             'diaryTimeGuid' => (string)(isset($params['diaryTimeGuid']) ? $params['diaryTimeGuid'] : '1'),
-            'unitGuid' => '0000000000000001',
-            'unitOptions' => array(array(
-                'id' => '0000000000000001',
-                'title' => '1 g',
-                'multiplier' => 1,
-            )),
+            'unitGuid' => isset($params['unitGuid']) && $params['unitGuid'] !== ''
+                ? (string)$params['unitGuid'] : '0000000000000001',
+            'unitOptions' => $this->unitOptions($params),
         );
         $url = $this->baseUrl() . '/user/foodstuff/add?format=json';
         $response = $this->request($url, 'POST', $dto, true);

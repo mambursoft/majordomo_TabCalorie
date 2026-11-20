@@ -4,13 +4,13 @@ aliases: [TabCalorie, PROMPT, Робочий документ]
 tags: [tabcalorie, majordomo, docs]
 lang: uk
 plugin: tabcalorie
-version: 1.1.0
+version: 1.2.0
 ---
 
 # Промпт створення публічного плагіна MajorDoMo «TabCalorie»
 
 > [!NOTE]
-> Робочий документ. Версія 1.1.0, 2026-11-20. Мова за замовчуванням — українська.
+> Робочий документ. Версія 1.2.0, 2026-11-20. Мова за замовчуванням — українська.
 > Після уточнень розділ «Відкриті питання» оновлюється, і його рішення стають вимогами.
 
 ## 1. Мета та контекст
@@ -143,6 +143,22 @@ version: 1.1.0
 - `HOME.md` — MOC (Map of Content) з wiki-посиланнями на всі документи трьома мовами.
 - `CHANGELOG.md`, `LICENSE`, `NOTICE.md`, `modinfo.json`, `build_package.py`.
 - Усі .md адаптовано до Obsidian: YAML frontmatter, wiki-посилання, callouts, чекбокси.
+
+### 4.7 Вимоги v1.2.0
+
+- Службові поля страви у `tabcalorie_foods`: `FOOD_ID`, `FOOD_URL`, `UNIT_GUID`
+  (`0000000000000001`), `UNIT_OPTIONS` (JSON), `DEFAULT_MULTIPLIER`,
+  `DEFAULT_SLOT` (1..6), `SERVICE_JSON`; форма додавання/редагування страви у
+  вкладці «Довідник страв» і пошук через autocomplete ТК. Write-back бере дані
+  звідти, а не з жорстко заданих констант.
+- Активність: `ACTIVITY_ENABLED=1`; `data.activities` → `tabcalorie_activities`
+  (унікальний ключ — дата + ID активності) і `STEPS`, `ACTIVITY_KCAL`,
+  `ACTIVITY_COUNT` у `tabcalorie_days`; вкладка «Активність» (добовий зріз +
+  7-денний огляд) і колонки CSV. Health Connect у ТК односторонній — лише читання.
+- Властивості `TabCalorie`: `status`, `raw`, `ActivitySteps`, `ActivityKcal`,
+  `ActivityCount` (див. [[API|API та формати даних]]).
+- Обслуговування БД: `LOG_RETENTION_DAYS=30`, `LOG_MAX_ROWS=2000`,
+  `WRITE_QUEUE_TTL_DAYS=7`.
 
 ## 5. Корисні можливості понад запит (пропозиції)
 

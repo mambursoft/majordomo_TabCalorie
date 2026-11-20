@@ -12,6 +12,11 @@ $GLOBALS['tc_test_groups'] = array(
     array('SLOT_ID' => 1, 'C' => 40, 'E' => 300, 'P' => 12.5, 'F' => 4.2, 'FI' => 6.1, 'S' => 8, 'N' => 1),
     array('SLOT_ID' => 3, 'C' => 60, 'E' => 260, 'P' => 5, 'F' => 0.9, 'FI' => 1.2, 'S' => 0.2, 'N' => 1),
 );
+$GLOBALS['tc_test_day']['STEPS'] = 3200;
+$GLOBALS['tc_test_day']['ACTIVITY_KCAL'] = 440;
+$GLOBALS['tc_test_day']['ACTIVITY_COUNT'] = 2;
+$GLOBALS['tc_test_day']['RAW_JSON'] = '{"code":0,"data":{"times":[]}}';
+$GLOBALS['tc_sql_exec'] = array();
 
 function DBSafe($v) { return addslashes((string)$v); }
 
@@ -29,6 +34,15 @@ function SQLSelectOne($sql)
     if (strpos($sql, "FROM tabcalorie_write_queue WHERE STATUS='ns_sent'") !== false) {
         return array('ID' => 0);
     }
+    if (strpos($sql, 'SUM(STEPS) AS S') !== false && strpos($sql, 'tabcalorie_activities') !== false) {
+        return array('S' => 3200, 'E' => 440, 'N' => 2);
+    }
+    if (strpos($sql, 'SELECT RAW_JSON FROM tabcalorie_days') !== false) {
+        return $GLOBALS['tc_test_day'];
+    }
+    if (strpos($sql, 'COUNT(*) AS N FROM tabcalorie_sync_log') !== false) {
+        return array('N' => 2500);
+    }
     return array();
 }
 
@@ -38,6 +52,12 @@ function SQLSelect($sql)
         return $GLOBALS['tc_test_groups'];
     }
     if (strpos($sql, 'LEFT JOIN tabcalorie_foods') !== false) {
+        return array();
+    }
+    if (strpos($sql, 'SUM(STEPS) AS S') !== false) {
+        return array('S' => 3200, 'E' => 440, 'N' => 2);
+    }
+    if (strpos($sql, 'FROM tabcalorie_activities') !== false) {
         return array();
     }
     if (strpos($sql, 'FROM tabcalorie_days') !== false) {
@@ -51,7 +71,7 @@ function SQLSelect($sql)
 
 function SQLInsert($table, &$rec) { $rec['ID'] = 1; return 1; }
 function SQLUpdate($table, $rec) { return true; }
-function SQLExec($sql) { return true; }
+function SQLExec($sql) { $GLOBALS['tc_sql_exec'][] = $sql; return true; }
 
 function getGlobal($name) { return isset($GLOBALS['tc_globals'][$name]) ? $GLOBALS['tc_globals'][$name] : ''; }
 function setGlobal($name, $value, $keepHistory = 0) { $GLOBALS['tc_globals'][$name] = $value; return true; }

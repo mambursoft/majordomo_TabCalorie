@@ -11,6 +11,29 @@
     "fiberTotal": 12.3,
     "sugarTotal": 30.4,
     "foodstuffCount": 2,
+    "activities": [
+      {
+        "id": "a1",
+        "type": "activity",
+        "guidType": "act-walk",
+        "title": "Прогулянка",
+        "activityType": "walking",
+        "steps": 3200,
+        "energy": "180",
+        "energyUnit": "kcal",
+        "duration": 35
+      },
+      {
+        "id": "a2",
+        "type": "activity",
+        "title": "Велосипед",
+        "activityType": "cycling",
+        "steps": 0,
+        "energy": 260,
+        "energyUnit": "kcal",
+        "duration": 40
+      }
+    ],
     "times": [
       {
         "id": "1",

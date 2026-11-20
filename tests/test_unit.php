@@ -86,6 +86,45 @@ check('norm zero when target off', TabCalorieStore::mealNorm(0, 1, 25) === 0.0);
 check('slot protein aggregated', abs($ov['slots'][1]['protein'] - 12.5) < 0.01);
 check('slot fat aggregated', abs($ov['slots'][3]['fat'] - 0.9) < 0.01);
 
+echo "== Activity (Health Connect -> TK) ==\n";
+$acts = TabCalorieStore::parseActivities($fixture['data'], '2026-11-19');
+check('two activities', count($acts) === 2, 'got ' . count($acts));
+check('steps parsed', abs($acts[0]['STEPS'] - 3200) < 0.01);
+check('czech energy', abs($acts[0]['ENERGY'] - 180) < 0.01);
+check('activity id', $acts[0]['ACTIVITY_ID'] === 'a1');
+$daySaved = TabCalorieStore::saveDay('2026-11-19', $fixture['data']);
+check('day steps aggregated', abs($daySaved['STEPS'] - 3200) < 0.01);
+check('day kcal aggregated', abs($daySaved['ACTIVITY_KCAL'] - 440) < 0.01);
+check('raw stored', strpos($daySaved['RAW_JSON'], 'activities') !== false);
+$ovAct = TabCalorieStore::overview('2026-11-19');
+check('overview activity', abs($ovAct['steps'] - 3200) < 0.01 && $ovAct['activity_count'] === 2);
+$rawDecoded = json_decode(TabCalorieStore::rawPayload('2026-11-19'), true);
+check('raw payload keys', isset($rawDecoded['date'], $rawDecoded['diary'], $rawDecoded['entries'], $rawDecoded['activities']));
+
+echo "== Retention / rotation ==\n";
+TabCalorieStore::cleanup(1825, array(
+    'LOG_RETENTION_DAYS' => 30, 'LOG_MAX_ROWS' => 2000, 'WRITE_QUEUE_TTL_DAYS' => 7));
+$sqls = implode(' ', $GLOBALS['tc_sql_exec']);
+check('log age rotation', strpos($sqls, 'tabcalorie_sync_log WHERE RUN_AT<') !== false);
+check('log row cap', strpos($sqls, 'DELETE FROM tabcalorie_sync_log ORDER BY ID ASC LIMIT 500') !== false, $sqls);
+check('queue TTL', strpos($sqls, 'tabcalorie_write_queue WHERE CREATED_AT<') !== false);
+check('activity retention', strpos($sqls, 'tabcalorie_activities WHERE ACTIVITY_DATE<') !== false);
+
+echo "== Object status ==\n";
+check('status off when cycle disabled',
+    TabCalorieStore::computeStatus(array('SYNC_ENABLED' => 0)) === 0);
+setGlobal('cycle_tabcalorieRunTs', time());
+check('status healthy',
+    TabCalorieStore::computeStatus(array('SYNC_ENABLED' => 1, 'LAST_ERROR' => '', 'CIRCUIT_UNTIL' => 0)) === 1);
+check('status error',
+    TabCalorieStore::computeStatus(array('SYNC_ENABLED' => 1, 'LAST_ERROR' => 'boom', 'CIRCUIT_UNTIL' => 0)) === 0);
+check('status circuit open',
+    TabCalorieStore::computeStatus(array('SYNC_ENABLED' => 1, 'LAST_ERROR' => '', 'CIRCUIT_UNTIL' => time() + 300)) === 0);
+setGlobal('cycle_tabcalorieRunTs', time() - 3600);
+check('status stale cycle',
+    TabCalorieStore::computeStatus(array('SYNC_ENABLED' => 1, 'LAST_ERROR' => '', 'CIRCUIT_UNTIL' => 0)) === 0);
+setGlobal('cycle_tabcalorieRunTs', time());
+
 echo "== Chart ==\n";
 $url = TabCalorieChart::standardUrl(7);
 check('pChart url', strpos($url, 'pChart/?') === 0 && strpos($url, 'TabCalorie.Slot1Carbs') !== false);

@@ -69,6 +69,23 @@ try {
     check('write-back ok', false, $api->getLastError());
 }
 
+echo "== food service data in write-back ==\n";
+try {
+    $api->addFood(array(
+        'guid' => 'food-rice', 'title' => 'Рис', 'url' => 'rys', 'date' => '2026-11-19',
+        'multiplier' => '200', 'diaryTimeGuid' => '3',
+        'unitGuid' => 'unit-custom-123',
+        'unitOptions' => array(array('id' => 'unit-custom-123', 'title' => 'порція (200 g)', 'multiplier' => 200)),
+    ));
+    $body2 = json_decode(file_get_contents($logFile), true);
+    $body2 = json_decode($body2['body'], true);
+    check('custom unit guid', isset($body2['unitGuid']) && $body2['unitGuid'] === 'unit-custom-123');
+    check('custom unit options',
+        isset($body2['unitOptions'][0]['multiplier']) && $body2['unitOptions'][0]['multiplier'] == 200);
+} catch (Exception $e) {
+    check('write-back ok', false, $api->getLastError());
+}
+
 echo "== diagnostics ==\n";
 $steps = $api->diagnose();
 $byStep = array();

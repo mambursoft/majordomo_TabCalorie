@@ -70,7 +70,8 @@ class TabCalorieExporter
     {
         $rows = TabCalorieStore::dayRows($from, $to);
         $headers = array('Дата', 'Ккал', 'Білки,г', 'Жири,г', 'Вуглеводи,г', 'ХО',
-            'Клітковина,г', 'Цукри,г', 'Прийомів', 'Продуктів', 'Нотатки');
+            'Клітковина,г', 'Цукри,г', 'Прийомів', 'Продуктів', 'Кроки',
+            'Активність,ккал', 'Активностей', 'Нотатки');
         $data = array();
         foreach ($rows as $r) {
             $carbs = TabCalorieStore::round1($r['CARBOHYDRATE']);
@@ -78,7 +79,11 @@ class TabCalorieExporter
                 self::dateUa($r['DAY_DATE']),
                 $r['ENERGY'], $r['PROTEIN'], $r['FAT'], $carbs,
                 TabCalorieStore::round1($carbs / max(1, (float)$gramsPerXe)),
-                $r['FIBER'], $r['SUGAR'], $r['SLOT_COUNT'], $r['FOODSTUFF_COUNT'], $r['NOTES'],
+                $r['FIBER'], $r['SUGAR'], $r['SLOT_COUNT'], $r['FOODSTUFF_COUNT'],
+                isset($r['STEPS']) ? $r['STEPS'] : 0,
+                isset($r['ACTIVITY_KCAL']) ? $r['ACTIVITY_KCAL'] : 0,
+                isset($r['ACTIVITY_COUNT']) ? $r['ACTIVITY_COUNT'] : 0,
+                $r['NOTES'],
             );
         }
         return self::build($headers, $data, $delimiter);
