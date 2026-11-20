@@ -3,3 +3,4 @@ __pycache__/
 *.pyc
 .env
 config.local.json
+tests/fixtures/last_request.json
