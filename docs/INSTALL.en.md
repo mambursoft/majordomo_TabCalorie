@@ -1,0 +1,226 @@
+# Installing TabCalorie
+
+[Українська](INSTALL.md) · [English](INSTALL.en.md) · [Русский](INSTALL.ru.md)
+
+Version 1.0.0 · 2026-11-20
+
+This guide describes how to install the MajorDoMo plugin `tabcalorie` in two
+ways: via Market and manually from a `.tgz` archive.
+
+> ⚠️ **Reminder:** TabCalorie is NOT a medical device and provides no medical
+> advice. See [README.en.md](../README.en.md).
+
+---
+
+## 1. Before you start
+
+### 1.1. Environment requirements
+
+| Requirement | Value |
+|---|---|
+| MajorDoMo | installation with the module mechanism (`modules/`, `templates/`, `languages/`, `scripts/`, `img/modules/`) |
+| PHP | **7.3–8.2** (minimum 7.3) |
+| PHP extensions | `curl`, `json`, `mbstring` |
+| DB | MySQL/MariaDB, accessed via MajorDoMo (`DBSafe`) |
+| Network | HTTPS, valid TLS verification, outbound access to the TK portal |
+| Rights | MajorDoMo administrator, `control_access` rights |
+
+### 1.2. Prepare your TK account
+
+1. Check the email you use in the "Calorie Table" app (menu **My profile**).
+2. If you signed in via Google/Apple/Facebook and have no separate password:
+   open `https://www.tablycjakalorijnosti.com.ua/login`, enter your email and
+   click **"Forgot password?"**. The direct-login email will not interrupt the
+   phone app.
+3. For the Czech portal use `https://www.kaloricketabulky.cz`.
+
+> Never store a real password in the repository or text files — it is entered
+> only in the protected module admin page and masked.
+
+---
+
+## 2. Option A — install via MajorDoMo Market
+
+1. Log in to the MajorDoMo admin area as an administrator.
+2. Open **Market / Module catalog** (or `/admin.php?p=market`).
+3. Search for `TabCalorie`.
+4. Click **Install** and confirm.
+5. Market unpacks the files into the MajorDoMo structure and runs module registration.
+6. Go to **Modules** and make sure `tabcalorie` is active. If not — activate it manually.
+7. Open the module settings (section 4).
+
+---
+
+## 3. Option B — manual installation from `.tgz`
+
+### 3.1. Get the package
+
+Build the package from the source repository or download a ready release:
+
+```bash
+git clone https://github.com/mambursoft/majordomo_TabCalorie.git
+cd majordomo_TabCalorie
+python3 build_package.py
+```
+
+Result: `dist/tabcalorie.tgz`.
+
+### 3.2. Extract into the MajorDoMo root
+
+```bash
+cd /var/www/html            # path to your MajorDoMo root
+tar -tzf /path/to/tabcalorie.tgz   # preview before extracting
+tar -xzf /path/to/tabcalorie.tgz
+```
+
+> `/var/www/html` is a typical path; use the real root of your installation.
+> The archive has no parent `majordomo_TabCalorie` folder — files go straight
+> into `modules/`, `templates/`, etc.
+
+### 3.3. Verify the structure
+
+```text
+modules/tabcalorie/          module PHP code (incl. tabcalorie.class.php)
+templates/tabcalorie/        html templates
+languages/tabcalorie_*.php   language files (uk default, en, ru)
+scripts/cycle_tabcalorie.php background sync cycle
+img/modules/tabcalorie.png   64×64 icon
+modinfo.json                 Market metadata
+README.md / README.en.md / README.ru.md
+LICENSE / NOTICE.md / CHANGELOG.md
+docs/                        documentation
+```
+
+### 3.4. Activate the module
+
+1. Admin → **Modules** → find `tabcalorie` in the inactive list.
+2. Click **Install / Activate**.
+3. During installation the module:
+   - registers in `project_modules`;
+   - sets the `cms/modules_installed/tabcalorie.installed` flag;
+   - adds a row to `plugins`;
+   - creates DB tables (below);
+   - creates the `TabCalorie` object of class `STabCalorie`;
+   - adds the `img/modules/tabcalorie.png` icon.
+
+### 3.5. Tables created
+
+| Table | Purpose |
+|---|---|
+| `tabcalorie_entries` | food entries (date, slot, food, quantity × unit, macros, GI, notes, `source`, `synced_at`); unique key `date + slot + food_guid + unit_raw` |
+| `tabcalorie_foods` | food reference per 100 g |
+| `tabcalorie_days` | daily totals |
+| `tabcalorie_sync_log` | sync log without secrets |
+| `tabcalorie_write_queue` | queue of write-backs to TK with confirmation |
+
+### 3.6. Set up the background cycle
+
+`scripts/cycle_tabcalorie.php` is meant to run on a MajorDoMo or system cron
+schedule. Minimum recommended interval is **15 minutes**, typical is 60 minutes
+(`SYNC_INTERVAL_MIN=60`).
+
+Example cron entry (substitute the real path):
+
+```cron
+*/15 * * * * php /var/www/html/scripts/cycle_tabcalorie.php >/dev/null 2>&1
+```
+
+> The cycle uses a single-flight lock: parallel runs do not create concurrent
+> requests to TK.
+
+---
+
+## 4. Initial configuration
+
+Open the module admin page and fill in the configuration keys (stored in
+`project_modules.DATA`):
+
+| Key | What to enter | Default |
+|---|---|---|
+| `BASE_URL` | `https://www.tablycjakalorijnosti.com.ua` (or CZ / `custom`) | `https://www.tablycjakalorijnosti.com.ua` |
+| `PROVIDER` | `ua`, `cz` or `custom` | `ua` |
+| `EMAIL` | TK account email | — |
+| `PASSWORD` | direct-login password (masked) | — |
+| `SYNC_ENABLED` | `1` — enable the cycle | `1` |
+| `SYNC_INTERVAL_MIN` | interval, min (≥15) | `60` |
+| `SYNC_DAYS` | incremental depth, days | `2` |
+| `HOOK_ENABLED` | `0` — hook disabled | `0` |
+| `HOOK_PROPERTY` | trigger `Obj.Prop` | — |
+| `HOOK_DEBOUNCE_SEC` | debounce, sec | `60` |
+| `RETENTION_DAYS` | data retention | `1825` (5 years) |
+| `LANGUAGE` | `uk` / `en` / `ru` | `uk` |
+| `GRAMS_PER_XE` | grams per bread unit | `10` |
+| `CARBS_TARGET` | daily carb target, g | `120` |
+| `CSV_DELIMITER` | CSV delimiter | `;` |
+| `WRITEBACK_ENABLED` | write-back to TK | `0` (disabled) |
+| `WRITEBACK_CONFIRM` | write confirmation | `1` |
+| `NS_ENABLED` | Nightscout | `0` (disabled) |
+| `NS_URL` | Nightscout base | — |
+| `NS_API_SECRET` | Nightscout secret (masked) | — |
+
+Full descriptions are in [README.en.md](../README.en.md#configuration).
+
+### 4.1. Check connection
+
+Click **"Check connection"** in the admin page. Diagnostics perform:
+
+- DNS/TLS/HTTP check;
+- login `POST /login/create?format=json&voucher=false` (password as `md5`);
+- cookie retrieval and validation;
+- a trial `GET /user/diary/DD.MM.YYYY/get?format=json`;
+- JSON parsing and 6-slot verification.
+
+Diagnostics **do not change data**. If something fails — see
+[TROUBLESHOOTING.en.md](TROUBLESHOOTING.en.md).
+
+### 4.2. First run
+
+1. Enable `SYNC_ENABLED=1` (if not already).
+2. Run the cycle manually or wait for the schedule.
+3. Open the public plugin page → **Overview** tab.
+4. Make sure the last filled day and correct totals are shown.
+5. Check **Diagnostics** → last successful sync and log.
+
+---
+
+## 5. Update
+
+1. Back up the DB (`tabcalorie_*` tables) and configuration.
+2. Build the new `.tgz` and extract over the current installation:
+   ```bash
+   tar -xzf tabcalorie.tgz -C /var/www/html
+   ```
+3. Open the admin page — the module applies table migrations.
+4. Verify **Diagnostics** and **Overview**.
+5. Configuration in `project_modules.DATA` is preserved.
+
+---
+
+## 6. Removal
+
+1. Admin → **Modules** → deactivate `tabcalorie`.
+2. Optionally drop tables `tabcalorie_entries`, `tabcalorie_foods`,
+   `tabcalorie_days`, `tabcalorie_sync_log`, `tabcalorie_write_queue`.
+3. Remove `modules/tabcalorie/`, `templates/tabcalorie/`,
+   `languages/tabcalorie_*.php`, `scripts/cycle_tabcalorie.php`,
+   `img/modules/tabcalorie.png`.
+4. Clear the config in `project_modules.DATA` manually if no longer needed.
+5. Remove the cron entry for `cycle_tabcalorie.php`.
+
+---
+
+## 7. Installation FAQ
+
+**Do I need to create tables manually?**
+No. The module creates them at installation time (heredoc format
+`table: FIELD type...`, mirrored in `modules/tabcalorie/db_install.php`).
+
+**Why isn't the module visible after extraction?**
+Make sure you extracted into the MajorDoMo root, not a subfolder, and that
+`modules/tabcalorie/tabcalorie.class.php` exists. Refresh the module cache in admin.
+
+**Can I install on PHP 7.3?**
+Yes, 7.3 is the minimum supported version; tested up to 8.2.
+
+**Where do I get a release?**
+https://github.com/mambursoft/majordomo_TabCalorie/releases

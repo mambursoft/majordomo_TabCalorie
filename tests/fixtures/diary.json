@@ -1,0 +1,63 @@
+{
+  "code": 0,
+  "message": "OK",
+  "data": {
+    "date": 1763618400000,
+    "energyUnit": "kcal",
+    "energyTotal": "1 234,5",
+    "carbohydrateTotal": "123,4",
+    "proteinTotal": 55.2,
+    "fatTotal": 40.1,
+    "fiberTotal": 12.3,
+    "sugarTotal": 30.4,
+    "foodstuffCount": 2,
+    "times": [
+      {
+        "id": "1",
+        "title": "Сніданок",
+        "foodstuff": [
+          {
+            "id": "e1",
+            "guidType": "food-oat",
+            "title": "Вівсянка на воді",
+            "unit": "150 x 1 g",
+            "energy": "300",
+            "protein": "12.5",
+            "fat": "4.2",
+            "carbohydrate": "40",
+            "fiber": "6.1",
+            "sugar": "8.0",
+            "url": "vivsianka"
+          }
+        ],
+        "notes": [{"title": "додати корицю"}],
+        "energyTotal": "300"
+      },
+      { "id": "2", "title": "Перекус", "foodstuff": [], "notes": [], "energyTotal": "0" },
+      {
+        "id": "3",
+        "title": "Обід",
+        "foodstuff": [
+          {
+            "id": "e2",
+            "guidType": "food-rice",
+            "title": "Рис відварний",
+            "unit": "200 x 1 g",
+            "energy": "260",
+            "protein": "5.0",
+            "fat": "0.9",
+            "carbohydrate": "60",
+            "fiber": "1.2",
+            "sugar": "0.2",
+            "url": "rys"
+          }
+        ],
+        "notes": [],
+        "energyTotal": "260"
+      },
+      { "id": "4", "title": "Підвечірок", "foodstuff": [], "notes": [], "energyTotal": "0" },
+      { "id": "5", "title": "Вечеря", "foodstuff": [], "notes": [], "energyTotal": "0" },
+      { "id": "6", "title": "Друга вечеря", "foodstuff": [], "notes": [], "energyTotal": "0" }
+    ]
+  }
+}

@@ -1,0 +1,63 @@
+<?php
+/**
+ * Minimal MajorDoMo stubs for unit tests. No real database is used.
+ */
+
+$GLOBALS['tc_test_day'] = array(
+    'ID' => 1, 'DAY_DATE' => '2026-11-19', 'ENERGY' => 560, 'PROTEIN' => 17.5,
+    'FAT' => 5.1, 'CARBOHYDRATE' => 100, 'FIBER' => 7.3, 'SUGAR' => 8.2,
+    'SLOT_COUNT' => 2, 'FOODSTUFF_COUNT' => 2, 'NOTES' => 'додати корицю',
+);
+$GLOBALS['tc_test_groups'] = array(
+    array('SLOT_ID' => 1, 'C' => 40, 'E' => 300, 'N' => 1),
+    array('SLOT_ID' => 3, 'C' => 60, 'E' => 260, 'N' => 1),
+);
+
+function DBSafe($v) { return addslashes((string)$v); }
+
+function SQLSelectOne($sql)
+{
+    if (strpos($sql, 'MAX(ENTRY_DATE)') !== false) {
+        return array('D' => '2026-11-19');
+    }
+    if (strpos($sql, 'FROM tabcalorie_days') !== false && strpos($sql, 'DAY_DATE=') !== false) {
+        return $GLOBALS['tc_test_day'];
+    }
+    if (strpos($sql, "SELECT * FROM tabcalorie_foods WHERE FOOD_GUID=") !== false) {
+        return array('ID' => 0);
+    }
+    if (strpos($sql, "FROM tabcalorie_write_queue WHERE STATUS='ns_sent'") !== false) {
+        return array('ID' => 0);
+    }
+    return array();
+}
+
+function SQLSelect($sql)
+{
+    if (strpos($sql, 'GROUP BY SLOT_ID') !== false) {
+        return $GLOBALS['tc_test_groups'];
+    }
+    if (strpos($sql, 'LEFT JOIN tabcalorie_foods') !== false) {
+        return array();
+    }
+    if (strpos($sql, 'FROM tabcalorie_days') !== false) {
+        return array($GLOBALS['tc_test_day']);
+    }
+    if (strpos($sql, 'FROM tabcalorie_entries') !== false) {
+        return array();
+    }
+    return array();
+}
+
+function SQLInsert($table, &$rec) { $rec['ID'] = 1; return 1; }
+function SQLUpdate($table, $rec) { return true; }
+function SQLExec($sql) { return true; }
+
+function getGlobal($name) { return isset($GLOBALS['tc_globals'][$name]) ? $GLOBALS['tc_globals'][$name] : ''; }
+function setGlobal($name, $value, $keepHistory = 0) { $GLOBALS['tc_globals'][$name] = $value; return true; }
+
+function addClass($name, $parent = '') { return 1; }
+function addClassProperty($class, $prop, $history = 0) { return 1; }
+function addClassObject($class, $object, $system = '') { return 1; }
+
+define('ROOTHTML', '/');
