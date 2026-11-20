@@ -13,7 +13,7 @@
  * @package tabcalorie
  * @author  mambursoft
  * @license MIT
- * @version 1.3.1
+ * @version 1.4.1
  */
 
 require_once(dirname(__FILE__) . '/lib/Api.php');
@@ -23,7 +23,7 @@ require_once(dirname(__FILE__) . '/lib/Chart.php');
 
 class tabcalorie extends module
 {
-    const VERSION = '1.4.0';
+    const VERSION = '1.4.1';
 
     /**
      * Localized module name. The admin menu is built from project_modules.TITLE
@@ -256,35 +256,23 @@ EOD;
     /** Idempotent creation of the STabCalorie class and TabCalorie object. */
     static function ensureObject()
     {
-        if (!function_exists('addClass') || !function_exists('getObject')) {
+        if (!function_exists('getObject')) {
             return false;
         }
-        $classId = addClass('STabCalorie');
-        if (!$classId) {
-            return false;
-        }
-        $props = array('LastDate', 'Partial', 'FilledSlots', 'GroupMainCarbs',
-            'GroupSnacksCarbs', 'GroupDayCarbs', 'TotalCarbs', 'TotalKcal',
-            'TotalProtein', 'TotalFat', 'TotalFiber', 'TotalSugar', 'TotalXE',
-            'GI', 'Notes', 'Updated', 'Status', 'Raw',
-            'ActivitySteps', 'ActivityKcal', 'ActivityCount');
-        for ($i = 1; $i <= 6; $i++) {
-            $props[] = 'Slot' . $i . 'Carbs';
-            $props[] = 'Slot' . $i . 'Kcal';
-            $props[] = 'Slot' . $i . 'Protein';
-            $props[] = 'Slot' . $i . 'Fat';
-        }
-        foreach ($props as $p) {
-            $history = (strpos($p, 'Carbs') !== false || strpos($p, 'Total') === 0) ? 365 : 0;
-            addClassProperty('STabCalorie', $p, $history);
-        }
-        addClassObject('STabCalorie', 'TabCalorie', 'tabcalorie');
-        return true;
+        return TabCalorieStore::ensureClassProperties();
     }
 
     function checkInstalled()
     {
         parent::checkInstalled();
+
+        // Refresh localized property descriptions when the site language changes.
+        $lang = defined('SETTINGS_SITE_LANGUAGE') ? strtolower(SETTINGS_SITE_LANGUAGE) : 'uk';
+        if (in_array($lang, array('uk', 'ua', 'en', 'ru'), true)
+            && getGlobal('TabCalorie.DescLang') !== $lang) {
+            TabCalorieStore::ensureClassProperties();
+            setGlobal('TabCalorie.DescLang', $lang);
+        }
 
         $rec = SQLSelectOne("SELECT ID, CATEGORY, TITLE FROM project_modules WHERE NAME='tabcalorie'");
         if (!$rec['ID']) {

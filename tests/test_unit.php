@@ -151,6 +151,18 @@ check('status stale cycle',
     TabCalorieStore::computeStatus(array('SYNC_ENABLED' => 1, 'LAST_ERROR' => '', 'CIRCUIT_UNTIL' => 0)) === 0);
 setGlobal('cycle_tabcalorieRunTs', time());
 
+echo "== Property descriptions ==\n";
+$dUk = TabCalorieStore::propertyDescriptions('uk');
+$dEn = TabCalorieStore::propertyDescriptions('en');
+$dRu = TabCalorieStore::propertyDescriptions('ru');
+check('all properties documented', count($dUk) === count(TabCalorieStore::objectPropertyNames()));
+check('45 properties', count($dUk) === 45, 'got ' . count($dUk));
+check('no empty descriptions', !in_array('', $dUk, true) && !in_array('', $dEn, true) && !in_array('', $dRu, true));
+check('uk localized', $dUk['Status'] === 'Стан інтеграції: 1 — OK, 0 — помилка або вимкнений цикл');
+check('en localized', $dEn['Status'] === 'Integration status: 1 OK, 0 error or disabled cycle');
+check('ru localized', strpos($dRu['Slot3Carbs'], 'обед') !== false, $dRu['Slot3Carbs']);
+check('slot names differ', $dUk['Slot1Carbs'] !== $dEn['Slot1Carbs']);
+
 echo "== Backoff / URL guard / Raw cap ==\n";
 check('backoff 60s', TabCalorieStore::backoffSeconds(1) === 60);
 check('backoff 120s', TabCalorieStore::backoffSeconds(2) === 120);

@@ -425,19 +425,13 @@ class TabCalorieStore
         return self::round1(max(0, (float)$dailyTarget) * self::mealShare($slotId, $sharePercent));
     }
 
-    /** Return the MajorDoMo object with per-meal aggregates for the last filled day. */
-    public static function updateObject($overview, $gramsPerXe = 10, $cfg = array())
+    /** Names of every property of the TabCalorie object. */
+    public static function objectPropertyNames()
     {
-        if (!function_exists('addClass') || !function_exists('getObject')) {
-            return false;
-        }
-        $classId = addClass('STabCalorie');
-        if (!$classId) {
-            return false;
-        }
-        $props = array('LastDate', 'Partial', 'FilledSlots', 'GroupMainCarbs', 'GroupSnacksCarbs',
-            'GroupDayCarbs', 'TotalCarbs', 'TotalKcal', 'TotalProtein', 'TotalFat', 'TotalFiber',
-            'TotalSugar', 'TotalXE', 'GI', 'Notes', 'Updated', 'Status', 'Raw',
+        $props = array('LastDate', 'Partial', 'FilledSlots', 'GroupMainCarbs',
+            'GroupSnacksCarbs', 'GroupDayCarbs', 'TotalCarbs', 'TotalKcal',
+            'TotalProtein', 'TotalFat', 'TotalFiber', 'TotalSugar', 'TotalXE',
+            'GI', 'Notes', 'Updated', 'Status', 'Raw',
             'ActivitySteps', 'ActivityKcal', 'ActivityCount');
         for ($i = 1; $i <= 6; $i++) {
             $props[] = 'Slot' . $i . 'Carbs';
@@ -445,11 +439,102 @@ class TabCalorieStore
             $props[] = 'Slot' . $i . 'Protein';
             $props[] = 'Slot' . $i . 'Fat';
         }
-        foreach ($props as $p) {
-            $history = (strpos($p, 'Carbs') !== false || strpos($p, 'Total') === 0) ? 365 : 0;
-            addClassProperty('STabCalorie', $p, $history);
+        return $props;
+    }
+
+    /** Create all class properties with localized descriptions in properties.DESCRIPTION. */
+    public static function ensureClassProperties()
+    {
+        if (!function_exists('addClass') || !function_exists('addClassProperty')) {
+            return false;
+        }
+        addClass('STabCalorie');
+        $descriptions = self::propertyDescriptions();
+        foreach (self::objectPropertyNames() as $name) {
+            $history = (strpos($name, 'Carbs') !== false || strpos($name, 'Total') === 0) ? 365 : 0;
+            $id = addClassProperty('STabCalorie', $name, $history);
+            if (!$id) {
+                continue;
+            }
+            $rec = SQLSelectOne("SELECT ID, DESCRIPTION FROM properties WHERE ID=" . (int)$id);
+            $current = trim((string)(isset($rec['DESCRIPTION']) ? $rec['DESCRIPTION'] : ''));
+            $wanted = isset($descriptions[$name]) ? $descriptions[$name] : $name;
+            if ($rec['ID'] && $current !== $wanted) {
+                $rec['DESCRIPTION'] = $wanted;
+                SQLUpdate('properties', $rec);
+            }
         }
         addClassObject('STabCalorie', 'TabCalorie', 'tabcalorie');
+        return true;
+    }
+
+    /** Localized property descriptions (uk / en / ru). */
+    public static function propertyDescriptions($lang = '')
+    {
+        if ($lang === '') {
+            $lang = defined('SETTINGS_SITE_LANGUAGE') ? strtolower(SETTINGS_SITE_LANGUAGE) : 'uk';
+        }
+        if (!in_array($lang, array('uk', 'ua', 'en', 'ru'), true)) {
+            $lang = 'uk';
+        }
+        $meals = array(
+            'uk' => array(1 => 'сніданок', 2 => 'перекус', 3 => 'обід', 4 => 'підвечірок', 5 => 'вечеря', 6 => 'друга вечеря'),
+            'ua' => array(1 => 'сніданок', 2 => 'перекус', 3 => 'обід', 4 => 'підвечірок', 5 => 'вечеря', 6 => 'друга вечеря'),
+            'en' => array(1 => 'breakfast', 2 => 'snack', 3 => 'lunch', 4 => 'afternoon snack', 5 => 'dinner', 6 => 'late dinner'),
+            'ru' => array(1 => 'завтрак', 2 => 'перекус', 3 => 'обед', 4 => 'полдник', 5 => 'ужин', 6 => 'второй ужин'),
+        );
+        $base = array(
+            'LastDate' => array('uk' => 'Дата останньої заповненої доби', 'en' => 'Date of the last filled day', 'ru' => 'Дата последнего заполненного дня'),
+            'Partial' => array('uk' => 'День частково заповнений: 1 — так, 0 — ні', 'en' => 'Partially filled day: 1 yes, 0 no', 'ru' => 'День заполнен частично: 1 — да, 0 — нет'),
+            'FilledSlots' => array('uk' => 'Кількість заповнених прийомів їжі (0–6)', 'en' => 'Number of filled meal slots (0–6)', 'ru' => 'Количество заполненных приёмов пищи (0–6)'),
+            'GroupMainCarbs' => array('uk' => 'Вуглеводи основних прийомів (сніданок, обід, вечеря), г', 'en' => 'Carbs of main meals (breakfast, lunch, dinner), g', 'ru' => 'Углеводы основных приёмов (завтрак, обед, ужин), г'),
+            'GroupSnacksCarbs' => array('uk' => 'Вуглеводи перекусів, г', 'en' => 'Carbs of snacks, g', 'ru' => 'Углеводы перекусов, г'),
+            'GroupDayCarbs' => array('uk' => 'Сума вуглеводів за добу, г', 'en' => 'Daily carbohydrate total, g', 'ru' => 'Сумма углеводов за день, г'),
+            'TotalCarbs' => array('uk' => 'Вуглеводи за останню заповнену добу, г', 'en' => 'Carbs for the last filled day, g', 'ru' => 'Углеводы за последний заполненный день, г'),
+            'TotalKcal' => array('uk' => 'Калорійність за добу, ккал', 'en' => 'Daily energy intake, kcal', 'ru' => 'Калорийность за день, ккал'),
+            'TotalProtein' => array('uk' => 'Білки за добу, г', 'en' => 'Daily protein, g', 'ru' => 'Белки за день, г'),
+            'TotalFat' => array('uk' => 'Жири за добу, г', 'en' => 'Daily fat, g', 'ru' => 'Жиры за день, г'),
+            'TotalFiber' => array('uk' => 'Клітковина за добу, г', 'en' => 'Daily fiber, g', 'ru' => 'Клетчатка за день, г'),
+            'TotalSugar' => array('uk' => 'Цукри за добу, г', 'en' => 'Daily sugars, g', 'ru' => 'Сахара за день, г'),
+            'TotalXE' => array('uk' => 'Хлібні одиниці за добу', 'en' => 'Daily bread units', 'ru' => 'Хлебные единицы за день'),
+            'GI' => array('uk' => 'Середній глікемічний індекс страв за добу', 'en' => 'Average glycemic index of the day', 'ru' => 'Средний гликемический индекс блюд за день'),
+            'Notes' => array('uk' => 'Нотатки до прийомів їжі', 'en' => 'Notes attached to meals', 'ru' => 'Заметки к приёмам пищи'),
+            'Updated' => array('uk' => 'Час останнього оновлення властивостей', 'en' => 'Last property update time', 'ru' => 'Время последнего обновления свойств'),
+            'Status' => array('uk' => 'Стан інтеграції: 1 — OK, 0 — помилка або вимкнений цикл', 'en' => 'Integration status: 1 OK, 0 error or disabled cycle', 'ru' => 'Состояние интеграции: 1 — ОК, 0 — ошибка или выключенный цикл'),
+            'Raw' => array('uk' => 'Сирі дані ТК за останню заповнену добу (JSON)', 'en' => 'Raw TK data for the last filled day (JSON)', 'ru' => 'Сырые данные ТК за последний заполненный день (JSON)'),
+            'ActivitySteps' => array('uk' => 'Кроки за добу (Health Connect)', 'en' => 'Daily steps (Health Connect)', 'ru' => 'Шаги за день (Health Connect)'),
+            'ActivityKcal' => array('uk' => 'Спалені калорії за добу (Health Connect)', 'en' => 'Daily burned calories (Health Connect)', 'ru' => 'Сожжённые калории за день (Health Connect)'),
+            'ActivityCount' => array('uk' => 'Кількість активностей за добу', 'en' => 'Number of activities per day', 'ru' => 'Количество активностей за день'),
+        );
+        $templates = array(
+            'Carbs' => array('uk' => 'Вуглеводи на %s, г', 'en' => 'Carbs at %s, g', 'ru' => 'Углеводы на %s, г'),
+            'Kcal' => array('uk' => 'Калорії на %s, ккал', 'en' => 'Calories at %s, kcal', 'ru' => 'Калории на %s, ккал'),
+            'Protein' => array('uk' => 'Білки на %s, г', 'en' => 'Protein at %s, g', 'ru' => 'Белки на %s, г'),
+            'Fat' => array('uk' => 'Жири на %s, г', 'en' => 'Fat at %s, g', 'ru' => 'Жиры на %s, г'),
+        );
+        for ($i = 1; $i <= 6; $i++) {
+            foreach ($templates as $suffix => $tpl) {
+                $base['Slot' . $i . $suffix] = array(
+                    'uk' => sprintf($tpl['uk'], $meals['uk'][$i]),
+                    'en' => sprintf($tpl['en'], $meals['en'][$i]),
+                    'ru' => sprintf($tpl['ru'], $meals['ru'][$i]),
+                );
+            }
+        }
+        $out = array();
+        foreach ($base as $name => $values) {
+            $out[$name] = isset($values[$lang]) ? $values[$lang] : $values['uk'];
+        }
+        return $out;
+    }
+
+    /** Return the MajorDoMo object with per-meal aggregates for the last filled day. */
+    public static function updateObject($overview, $gramsPerXe = 10, $cfg = array())
+    {
+        if (!function_exists('addClass') || !function_exists('getObject')) {
+            return false;
+        }
+        self::ensureClassProperties();
         $obj = getObject('TabCalorie');
         if (!$obj) {
             return false;

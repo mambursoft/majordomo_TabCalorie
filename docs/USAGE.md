@@ -4,14 +4,14 @@ aliases: [TabCalorie, USAGE, Огляд можливостей]
 tags: [tabcalorie, majordomo, docs]
 lang: uk
 plugin: tabcalorie
-version: 1.4.0
+version: 1.4.1
 ---
 
 # Використання TabCalorie
 
 [[USAGE|Українська]] · [[USAGE.en|English]] · [[USAGE.ru|Русский]]
 
-Версія 1.4.0 · 2026-11-20
+Версія 1.4.1 · 2026-11-20
 
 Цей документ описує роботу з інтерфейсом плагіна після
 [[INSTALL|встановлення]] і налаштування.
