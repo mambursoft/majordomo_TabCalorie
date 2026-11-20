@@ -4,14 +4,14 @@ aliases: [TabCalorie, TROUBLESHOOTING, Діагностика]
 tags: [tabcalorie, majordomo, docs]
 lang: uk
 plugin: tabcalorie
-version: 1.2.2
+version: 1.3.0
 ---
 
 # Усунення несправностей TabCalorie
 
 [[TROUBLESHOOTING|Українська]] · [[TROUBLESHOOTING.en|English]] · [[TROUBLESHOOTING.ru|Русский]]
 
-Версія 1.1.0 · 2026-11-20
+Версія 1.3.0 · 2026-11-20
 
 Цей документ допомагає діагностувати типові проблеми. Почніть із вкладки
 **Діагностика** та кнопки **«Перевірити підключення»** — вона перевіряє

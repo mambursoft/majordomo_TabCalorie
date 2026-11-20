@@ -252,9 +252,29 @@ class TabCalorieApi
     /** Product form for unit options (used before a confirmed write-back). */
     public function getFoodForm($guid)
     {
+        if ($this->isDemo()) {
+            return array('guid' => $guid, 'unitGuid' => '0000000000000001',
+                'unitOptions' => array(
+                    array('id' => '0000000000000001', 'title' => '1 g', 'multiplier' => 1),
+                    array('id' => 'demo-100', 'title' => '100 g', 'multiplier' => 100),
+                ), 'multiplier' => 100);
+        }
         $url = $this->baseUrl() . '/user/foodstuff/add/form/' . rawurlencode($guid) . '?format=json';
         $response = $this->request($url, 'GET');
         return $this->envelope($response, 'food form');
+    }
+
+    /** Normalize the food URL: never duplicate the "potraviny/" prefix. */
+    private function foodUrl($url)
+    {
+        $url = ltrim($url, '/');
+        if ($url === '') {
+            return 'potraviny/';
+        }
+        if (stripos($url, 'potraviny/') === 0) {
+            return $url;
+        }
+        return 'potraviny/' . $url;
     }
 
     /** Unit options from the food dictionary, with a safe gram fallback. */
@@ -295,7 +315,7 @@ class TabCalorieApi
         $dto = array(
             'guid' => (string)(isset($params['guid']) ? $params['guid'] : ''),
             'title' => (string)(isset($params['title']) ? $params['title'] : ''),
-            'url' => 'potraviny/' . ltrim((string)(isset($params['url']) ? $params['url'] : ''), '/'),
+            'url' => $this->foodUrl(isset($params['url']) ? (string)$params['url'] : ''),
             'date' => date('d.m.Y', strtotime($params['date'])),
             'multiplier' => (string)(isset($params['multiplier']) ? $params['multiplier'] : '100'),
             'diaryTimeGuid' => (string)(isset($params['diaryTimeGuid']) ? $params['diaryTimeGuid'] : '1'),

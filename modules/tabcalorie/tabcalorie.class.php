@@ -13,7 +13,7 @@
  * @package tabcalorie
  * @author  mambursoft
  * @license MIT
- * @version 1.0.0
+ * @version 1.3.0
  */
 
 require_once(dirname(__FILE__) . '/lib/Api.php');
@@ -23,7 +23,7 @@ require_once(dirname(__FILE__) . '/lib/Chart.php');
 
 class tabcalorie extends module
 {
-    const VERSION = '1.2.2';
+    const VERSION = '1.3.0';
 
     function tabcalorie()
     {
@@ -94,6 +94,7 @@ class tabcalorie extends module
             'LAST_SYNC'         => '',
             'LAST_ERROR'        => '',
             'CIRCUIT_UNTIL'     => 0,
+            'FAIL_COUNT'        => 0,
         );
     }
 
@@ -108,7 +109,7 @@ class tabcalorie extends module
 
     function install($data = '')
     {
-        $this->dbInstall('');
+        // parent::install() already calls $this->dbInstall("").
         parent::install();
 
         $cfg = $this->configAll();
@@ -142,6 +143,7 @@ tabcalorie_entries: SLOT_ID int(11) NOT NULL DEFAULT '0'
 tabcalorie_entries: SLOT_TITLE varchar(255) NOT NULL DEFAULT ''
 tabcalorie_entries: TITLE varchar(255) NOT NULL DEFAULT ''
 tabcalorie_entries: FOOD_GUID varchar(64) NOT NULL DEFAULT ''
+tabcalorie_entries: ITEM_ID varchar(64) NOT NULL DEFAULT ''
 tabcalorie_entries: FOOD_URL varchar(255) NOT NULL DEFAULT ''
 tabcalorie_entries: UNIT_RAW varchar(64) NOT NULL DEFAULT ''
 tabcalorie_entries: QUANTITY float NOT NULL DEFAULT '0'
@@ -154,8 +156,8 @@ tabcalorie_entries: FIBER float NOT NULL DEFAULT '0'
 tabcalorie_entries: SUGAR float NOT NULL DEFAULT '0'
 tabcalorie_entries: SOURCE varchar(16) NOT NULL DEFAULT 'tk'
 tabcalorie_entries: SYNCED_AT datetime NOT NULL DEFAULT '0000-00-00 00:00:00'
-tabcalorie_entries: KEY IDX_TC_ENTRY_DATE (ENTRY_DATE)
-tabcalorie_entries: KEY IDX_TC_ENTRY_GUID (FOOD_GUID)
+tabcalorie_entries: KEY (ENTRY_DATE)
+tabcalorie_entries: KEY (FOOD_GUID)
 tabcalorie_foods: ID int(10) unsigned NOT NULL auto_increment
 tabcalorie_foods: FOOD_GUID varchar(64) NOT NULL DEFAULT ''
 tabcalorie_foods: FOOD_ID varchar(64) NOT NULL DEFAULT ''
@@ -192,7 +194,7 @@ tabcalorie_days: ACTIVITY_COUNT int(11) NOT NULL DEFAULT '0'
 tabcalorie_days: NOTES text
 tabcalorie_days: RAW_JSON longtext
 tabcalorie_days: UPDATED datetime NOT NULL DEFAULT '0000-00-00 00:00:00'
-tabcalorie_days: KEY IDX_TC_DAY_DATE (DAY_DATE)
+tabcalorie_days: KEY (DAY_DATE)
 tabcalorie_activities: ID int(10) unsigned NOT NULL auto_increment
 tabcalorie_activities: ACTIVITY_KEY varchar(64) NOT NULL DEFAULT ''
 tabcalorie_activities: ACTIVITY_DATE date NOT NULL
@@ -206,7 +208,7 @@ tabcalorie_activities: UNIT varchar(32) NOT NULL DEFAULT 'kcal'
 tabcalorie_activities: DURATION float NOT NULL DEFAULT '0'
 tabcalorie_activities: RAW_JSON text
 tabcalorie_activities: SYNCED_AT datetime NOT NULL DEFAULT '0000-00-00 00:00:00'
-tabcalorie_activities: KEY IDX_TC_ACTIVITY_DATE (ACTIVITY_DATE)
+tabcalorie_activities: KEY (ACTIVITY_DATE)
 tabcalorie_sync_log: ID int(10) unsigned NOT NULL auto_increment
 tabcalorie_sync_log: RUN_AT datetime NOT NULL DEFAULT '0000-00-00 00:00:00'
 tabcalorie_sync_log: KIND varchar(32) NOT NULL DEFAULT ''
@@ -271,10 +273,12 @@ EOD;
 
         $rec = SQLSelectOne("SELECT ID, CATEGORY, TITLE FROM project_modules WHERE NAME='tabcalorie'");
         if (!$rec['ID']) {
-            SQLInsert('project_modules', array(
+            // SQLInsert() takes the record BY REFERENCE in MajorDoMo.
+            $newModule = array(
                 'NAME' => 'tabcalorie', 'TITLE' => $this->title,
                 'CATEGORY' => $this->module_category, 'DATA' => '',
-            ));
+            );
+            SQLInsert('project_modules', $newModule);
         } elseif (strpos((string)$rec['TITLE'], '<#LANG_') !== false || trim((string)$rec['TITLE']) === '') {
             // Repair installations created before v1.2.1: the menu is rendered
             // before module dictionaries load, so the placeholder was empty.
@@ -403,6 +407,21 @@ EOD;
         return $token !== '' && isset($_SESSION['tabcalorie_csrf']) && hash_equals($_SESSION['tabcalorie_csrf'], $token);
     }
 
+    /** Simple per-session throttle for actions that open a TK connection. */
+    function rateLimited($key, $seconds)
+    {
+        if (!isset($_SESSION)) {
+            return false;
+        }
+        $k = 'tc_last_' . $key;
+        $last = isset($_SESSION[$k]) ? (int)$_SESSION[$k] : 0;
+        if (time() - $last < $seconds) {
+            return true;
+        }
+        $_SESSION[$k] = time();
+        return false;
+    }
+
     function json($data)
     {
         while (ob_get_level() > 0) {
@@ -435,19 +454,23 @@ EOD;
 
         if (isset($_GET['mode'])) {
             $mode = (string)$_GET['mode'];
-            if ($mode === 'export') {
-                $this->doExport();
-            }
             if ($mode === 'chart_svg') {
                 $this->json(array('ok' => true, 'svg' => TabCalorieChart::svg(7)));
             }
             if ($mode === 'diagnose_ajax') {
-                $this->json(array('ok' => true, 'steps' => $this->diagnose()));
+                $fresh = !$this->rateLimited('diag', 10);
+                $this->json(array('ok' => true, 'steps' => $this->diagnose($fresh)));
             }
             if ($mode === 'food_search_ajax') {
+                if ($this->rateLimited('food_search', 2)) {
+                    $this->json(array('ok' => false, 'message' => 'too many requests', 'items' => array()));
+                }
                 $this->ajaxFoodSearch(isset($_GET['q']) ? (string)$_GET['q'] : '');
             }
             if ($mode === 'food_detail_ajax') {
+                if ($this->rateLimited('food_detail', 2)) {
+                    $this->json(array('ok' => false, 'message' => 'too many requests'));
+                }
                 $this->ajaxFoodDetail(isset($_GET['guid']) ? (string)$_GET['guid'] : '');
             }
         }
@@ -456,15 +479,32 @@ EOD;
                 $error = $this->tr('TC_CSRF_ERROR');
             } else {
                 $postMode = isset($_POST['do']) ? (string)$_POST['do'] : '';
-                if ($postMode === 'save_settings') {
+                if ($postMode === 'export') {
+                    $this->doExport();
+                } elseif ($postMode === 'save_settings') {
                     $cfg = $this->saveSettings($cfg);
                     $message = $this->tr('TC_SAVED');
-                    setGlobal('cycle_tabcalorieControl', 'restart');
+                    setGlobal('cycle_tabcalorieControl', 'sync_now');
                 } elseif ($postMode === 'sync_now') {
                     $r = $this->sync(null, true);
                     $message = $r['ok'] ? $this->tr('TC_SYNC_DONE') . ' (' . $r['rows'] . ')' : $r['message'];
                     if (!$r['ok']) {
                         $error = $r['message'];
+                    }
+                } elseif ($postMode === 'write_queue') {
+                    $r = $this->queueWriteback(isset($_POST['id']) ? (int)$_POST['id'] : 0);
+                    $message = $r['message'];
+                    if (!$r['ok']) {
+                        $error = $r['message'];
+                    }
+                } elseif ($postMode === 'write_confirm') {
+                    $id = (int)(isset($_POST['id']) ? $_POST['id'] : 0);
+                    $cfgNow = $this->configAll();
+                    if (!(int)$cfgNow['WRITEBACK_CONFIRM']) {
+                        $error = $this->tr('TC_WRITEBACK_OFF');
+                    } else {
+                        TabCalorieStore::setWriteStatus($id, 'confirmed', 'confirmed by user');
+                        $message = $this->tr('TC_SAVED');
                     }
                 } elseif ($postMode === 'write_send') {
                     $r = $this->sendWriteQueue();
@@ -476,6 +516,18 @@ EOD;
                     $id = (int)(isset($_POST['id']) ? $_POST['id'] : 0);
                     TabCalorieStore::setWriteStatus($id, 'cancelled', 'cancelled by user');
                     $message = $this->tr('TC_SAVED');
+                } elseif ($postMode === 'diagnose_run') {
+                    $steps = $this->diagnose(true);
+                    $failed = 0;
+                    foreach ($steps as $s) {
+                        if (empty($s['ok'])) {
+                            $failed++;
+                        }
+                    }
+                    $message = $this->tr('TC_DIAGNOSTICS') . ': ' . (count($steps) - $failed) . '/' . count($steps);
+                    if ($failed) {
+                        $error = $this->tr('TC_CONNECTION_FAIL');
+                    }
                 } elseif ($postMode === 'food_save') {
                     $r = $this->saveFoodFromPost();
                     $message = $this->tr('TC_SAVED');
@@ -542,8 +594,8 @@ EOD;
 
         switch ($tab) {
             case 'overview':    $html .= $this->tabOverview($cfg); break;
-            case 'activity':    $html .= $this->tabActivity(); break;
-            case 'history':     $html .= $this->tabHistory(); break;
+            case 'activity':    $html .= $this->tabActivity($cfg); break;
+            case 'history':     $html .= $this->tabHistory($cfg); break;
             case 'foods':       $html .= $this->tabFoods($isAdmin); break;
             case 'chart':       $html .= $this->tabChart(); break;
             case 'export':      $html .= $this->tabExport($cfg); break;
@@ -583,9 +635,48 @@ EOD;
         return $html;
     }
 
+    /** Demo preview built entirely in memory - never reads/writes real tables. */
+    function demoOverview()
+    {
+        $date = date('Y-m-d');
+        $diary = TabCalorieDemo::diary($date);
+        $rows = TabCalorieStore::parseDiary($diary, $date);
+        $slots = array();
+        for ($i = 1; $i <= 6; $i++) {
+            $slots[$i] = array('id' => $i, 'title_key' => TabCalorieStore::slotKey($i),
+                'carbs' => 0.0, 'kcal' => 0.0, 'protein' => 0.0, 'fat' => 0.0,
+                'fiber' => 0.0, 'sugar' => 0.0, 'count' => 0, 'present' => false);
+        }
+        foreach ($rows as $r) {
+            $id = (int)$r['SLOT_ID'];
+            if (!isset($slots[$id])) {
+                continue;
+            }
+            $slots[$id]['carbs'] += $r['CARBOHYDRATE'];
+            $slots[$id]['kcal'] += $r['ENERGY'];
+            $slots[$id]['protein'] += $r['PROTEIN'];
+            $slots[$id]['fat'] += $r['FAT'];
+            $slots[$id]['count']++;
+            $slots[$id]['present'] = true;
+        }
+        $main = $slots[1]['carbs'] + $slots[3]['carbs'] + $slots[5]['carbs'];
+        $snacks = $slots[2]['carbs'] + $slots[4]['carbs'] + $slots[6]['carbs'];
+        return array(
+            'date' => $date, 'partial' => true, 'slot_count' => 2,
+            'slots' => $slots,
+            'groups' => array('main' => $main, 'snacks' => $snacks, 'day' => $main + $snacks),
+            'total_carbs' => $main + $snacks,
+            'total_kcal' => $slots[1]['kcal'] + $slots[3]['kcal'],
+            'protein' => $slots[1]['protein'] + $slots[3]['protein'],
+            'fat' => $slots[1]['fat'] + $slots[3]['fat'],
+            'fiber' => 0, 'sugar' => 0, 'notes' => '',
+            'steps' => 0, 'activity_kcal' => 0, 'activity_count' => 0,
+        );
+    }
+
     function tabOverview($cfg)
     {
-        $ov = TabCalorieStore::overview();
+        $ov = (int)$cfg['DEMO_MODE'] === 1 ? $this->demoOverview() : TabCalorieStore::overview();
         $xe = TabCalorieStore::round1($ov['total_carbs'] / max(1, (float)$cfg['GRAMS_PER_XE']));
         $share = (int)$cfg['MEAL_NORM_SHARE'];
         $targets = array(
@@ -664,9 +755,13 @@ EOD;
     }
 
     /** Activity imported from the TK diary (Health Connect -> TK -> plugin). */
-    function tabActivity()
+    function tabActivity($cfg = array())
     {
-        $ov = TabCalorieStore::overview();
+        $ov = (int)(isset($cfg['DEMO_MODE']) ? $cfg['DEMO_MODE'] : 0) === 1
+            ? $this->demoOverview() : TabCalorieStore::overview();
+        if (isset($cfg['ACTIVITY_ENABLED']) && (int)$cfg['ACTIVITY_ENABLED'] !== 1) {
+            return '<div class="tc-alert tc-err">' . $this->e($this->tr('TC_ACTIVITY_OFF')) . '</div>';
+        }
         $rows = TabCalorieStore::activityRows($ov['date']);
         $since = date('Y-m-d', time() - 6 * 86400);
         $week = TabCalorieStore::dayRows($since, date('Y-m-d'));
@@ -718,7 +813,7 @@ EOD;
         return $html;
     }
 
-    function tabHistory()
+    function tabHistory($cfg = array())
     {
         $rows = TabCalorieStore::dayRows(date('Y-m-d', time() - 30 * 86400), date('Y-m-d'));
         $html = '<div class="tc-panel"><div class="tc-panel-head">' . $this->e($this->tr('TC_HISTORY')) .
@@ -735,6 +830,26 @@ EOD;
             $html .= '<tr><td colspan="5" class="tc-muted">' . $this->e($this->tr('TC_NO_DATA')) . '</td></tr>';
         }
         $html .= '</tbody></table></div></div>';
+
+        if (!empty($cfg['WRITEBACK_ENABLED'])) {
+            $entries = SQLSelect("SELECT ID, ENTRY_DATE, SLOT_ID, TITLE, QUANTITY, UNIT
+                                  FROM tabcalorie_entries ORDER BY ENTRY_DATE DESC, ID DESC LIMIT 20");
+            $html .= '<div class="tc-panel"><div class="tc-panel-head">' .
+                $this->e($this->tr('TC_WRITEBACK_QUEUE')) . '</div><div class="tc-table-wrap">' .
+                '<table class="tc-table"><thead><tr><th>' . $this->e($this->tr('TC_DATE')) .
+                '</th><th>' . $this->e($this->tr('TC_MEAL')) . '</th><th>' .
+                $this->e($this->tr('TC_FOOD')) . '</th><th></th></tr></thead><tbody>';
+            foreach ($entries as $e) {
+                $html .= '<tr><td>' . $this->e(TabCalorieExporter::dateUa($e['ENTRY_DATE'])) . '</td><td>#' .
+                    (int)$e['SLOT_ID'] . '</td><td>' . $this->e($e['TITLE']) . '</td><td>' .
+                    '<form method="post" class="tc-inline"><input type="hidden" name="csrf" value="' .
+                    $this->e($this->csrfToken()) . '"><input type="hidden" name="do" value="write_queue">' .
+                    '<input type="hidden" name="id" value="' . (int)$e['ID'] . '">' .
+                    '<button type="submit" class="tc-btn tc-btn-sm">' .
+                    $this->e($this->tr('TC_QUEUE_WRITE')) . '</button></form></td></tr>';
+            }
+            $html .= '</tbody></table></div></div>';
+        }
         return $html;
     }
 
@@ -832,18 +947,21 @@ EOD;
     {
         $searchUrl = $this->url('food_search_ajax');
         $detailUrl = $this->url('food_detail_ajax');
+        $flags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
         return '<script>
 (function(){
-  var sUrl=' . json_encode($searchUrl) . ', dUrl=' . json_encode($detailUrl) . ';
+  var sUrl=' . json_encode($searchUrl, $flags) . ', dUrl=' . json_encode($detailUrl, $flags) . ';
   document.addEventListener("DOMContentLoaded",function(){
     var q=document.getElementById("tc-food-q"), btn=document.getElementById("tc-food-search");
     var out=document.getElementById("tc-food-results"), form=document.getElementById("tc-food-form");
     if(!q||!btn||!out||!form)return;
+    function clear(el){while(el.firstChild)el.removeChild(el.firstChild);}
+    function text(el,cls,value){var s=document.createElement("span");if(cls)s.className=cls;s.textContent=value||"";el.appendChild(s);}
     function set(name,value){var el=form.querySelector("[name="+name+"]");if(el)el.value=value;}
     function fill(item){
       set("TITLE",item.title||"");set("FOOD_ID",item.id||"");set("FOOD_GUID",item.id||"");
       set("FOOD_URL",item.url||"");set("UNIT",item.unit||"g");
-      out.innerHTML="<div class=tc-small>"+(item.title||"")+"</div>";
+      clear(out);text(out,"tc-small",item.title||"");
       fetch(dUrl+"&guid="+encodeURIComponent(item.id)).then(function(r){return r.json();}).then(function(j){
         if(!j.ok||!j.form)return;
         var f=j.form;
@@ -854,16 +972,17 @@ EOD;
       }).catch(function(){});
     }
     btn.onclick=function(){
-      out.innerHTML="...";
+      clear(out);text(out,"tc-small","...");
       fetch(sUrl+"&q="+encodeURIComponent(q.value)).then(function(r){return r.json();}).then(function(j){
-        if(!j.ok){out.innerHTML="<span class=tc-err>"+(j.message||"error")+"</span>";return;}
-        out.innerHTML="";
+        clear(out);
+        if(!j.ok){text(out,"tc-err",j.message||"error");return;}
+        if(!(j.items||[]).length){text(out,"tc-small","-");return;}
         (j.items||[]).forEach(function(it){
           var a=document.createElement("button");a.type="button";a.className="tc-btn tc-btn-sm";
-          a.textContent=it.title;a.style.margin="2px";a.onclick=function(){fill(it);};
+          a.textContent=it.title||"";a.style.margin="2px";a.onclick=function(){fill(it);};
           out.appendChild(a);
         });
-      }).catch(function(e){out.innerHTML="error";});
+      }).catch(function(){clear(out);text(out,"tc-err","error");});
     };
   });
 })();
@@ -885,9 +1004,9 @@ EOD;
     function tabExport($cfg)
     {
         $html = '<div class="tc-panel"><div class="tc-panel-head">' . $this->e($this->tr('TC_EXPORT')) . '</div>' .
-            '<div class="tc-panel-body"><form method="get" class="tc-form">';
-        $url = $this->url('export');
-        $html .= '<input type="hidden" name="action" value="tabcalorie"><input type="hidden" name="mode" value="export">';
+            '<div class="tc-panel-body"><form method="post" class="tc-form">';
+        $html .= '<input type="hidden" name="csrf" value="' . $this->e($this->csrfToken()) . '">' .
+            '<input type="hidden" name="do" value="export">';
         $html .= '<label>' . $this->e($this->tr('TC_PERIOD')) . ' <select name="period">';
         foreach (array('day', 'week', 'month', 'year') as $p) {
             $html .= '<option value="' . $p . '">' . $this->e($this->tr('TC_PERIOD_' . strtoupper($p))) . '</option>';
@@ -906,7 +1025,15 @@ EOD;
         $enabled = (int)$cfg['WRITEBACK_ENABLED'] === 1;
         $html = '<div class="tc-alert ' . ($enabled ? 'tc-ok' : 'tc-err') . '">' .
             $this->e($enabled ? $this->tr('TC_WRITEBACK_ON') : $this->tr('TC_WRITEBACK_OFF')) . '</div>';
-        $rows = TabCalorieStore::writeQueue(30);
+        $allRows = TabCalorieStore::writeQueue(50);
+        $rows = array();
+        foreach ($allRows as $r) {
+            $p = json_decode($r['PAYLOAD'], true);
+            if (is_array($p) && isset($p['kind']) && $p['kind'] === 'ns') {
+                continue;
+            }
+            $rows[] = $r;
+        }
         $html .= '<div class="tc-panel"><div class="tc-panel-head">' . $this->e($this->tr('TC_WRITEBACK_QUEUE')) .
             '</div><div class="tc-table-wrap"><table class="tc-table"><thead><tr><th>ID</th><th>' .
             $this->e($this->tr('TC_FOOD')) . '</th><th>' . $this->e($this->tr('TC_DATE')) .
@@ -914,21 +1041,27 @@ EOD;
         foreach ($rows as $r) {
             $p = json_decode($r['PAYLOAD'], true);
             $p = is_array($p) ? $p : array();
-            if (isset($p['kind']) && $p['kind'] === 'ns') {
-                continue;
-            }
             $html .= '<tr><td>' . (int)$r['ID'] . '</td><td>' . $this->e(isset($p['title']) ? $p['title'] : '') .
                 '</td><td>' . $this->e(isset($p['date']) ? $p['date'] : '') . '</td><td>' .
                 $this->e($r['STATUS']) . '</td><td>';
-            if ($r['STATUS'] === 'draft' && $enabled) {
-                $html .= '<form method="post" class="tc-inline"><input type="hidden" name="csrf" value="' .
-                    $this->e($this->csrfToken()) . '"><input type="hidden" name="do" value="write_send">' .
-                    '<input type="hidden" name="id" value="' . (int)$r['ID'] . '">' .
-                    '<button type="submit" class="tc-btn tc-btn-sm">' . $this->e($this->tr('TC_CONFIRM_SEND')) . '</button></form>' .
-                    '<form method="post" class="tc-inline"><input type="hidden" name="csrf" value="' .
-                    $this->e($this->csrfToken()) . '"><input type="hidden" name="do" value="write_cancel">' .
-                    '<input type="hidden" name="id" value="' . (int)$r['ID'] . '">' .
-                    '<button type="submit" class="tc-btn tc-btn-sm">' . $this->e($this->tr('TC_CANCEL')) . '</button></form>';
+            if ($enabled && in_array($r['STATUS'], array('draft', 'confirmed'), true)) {
+                $hidden = '<input type="hidden" name="csrf" value="' . $this->e($this->csrfToken()) .
+                    '"><input type="hidden" name="id" value="' . (int)$r['ID'] . '">';
+                if ($r['STATUS'] === 'draft') {
+                    $html .= '<form method="post" class="tc-inline">' . $hidden .
+                        '<input type="hidden" name="do" value="write_confirm">' .
+                        '<button type="submit" class="tc-btn tc-btn-sm">' .
+                        $this->e($this->tr('TC_CONFIRM_SEND')) . '</button></form>';
+                } else {
+                    $html .= '<form method="post" class="tc-inline">' . $hidden .
+                        '<input type="hidden" name="do" value="write_send">' .
+                        '<button type="submit" class="tc-btn tc-btn-sm">' .
+                        $this->e($this->tr('TC_SEND')) . '</button></form>';
+                }
+                $html .= '<form method="post" class="tc-inline">' . $hidden .
+                    '<input type="hidden" name="do" value="write_cancel">' .
+                    '<button type="submit" class="tc-btn tc-btn-sm">' .
+                    $this->e($this->tr('TC_CANCEL')) . '</button></form>';
             }
             $html .= '</td></tr>';
         }
@@ -951,7 +1084,12 @@ EOD;
                 ($s['ok'] ? '<span class="tc-badge tc-ok">OK</span>' : '<span class="tc-badge tc-err">FAIL</span>') .
                 '</td><td>' . $this->e($s['message']) . '</td></tr>';
         }
-        $html .= '</tbody></table><div class="tc-small">' . $this->e($this->tr('TC_DIAG_HINT')) . '</div></div></div>';
+        $html .= '</tbody></table><div class="tc-small">' . $this->e($this->tr('TC_DIAG_HINT')) . '</div>';
+        $html .= '<form method="post" class="tc-inline" style="margin-top:10px">' .
+            '<input type="hidden" name="csrf" value="' . $this->e($this->csrfToken()) . '">' .
+            '<input type="hidden" name="do" value="diagnose_run">' .
+            '<button type="submit" class="tc-btn tc-btn-primary">' .
+            $this->e($this->tr('TC_CHECK_CONNECTION')) . '</button></form></div></div>';
         return $html;
     }
 
@@ -1069,18 +1207,18 @@ EOD;
                 $cfg['BASE_URL'] = $urls[$p];
             }
         }
-        if ($cfg['PROVIDER'] === 'custom') {
-            $parts = parse_url($cfg['BASE_URL']);
-            if (!$parts || !isset($parts['scheme']) || $parts['scheme'] !== 'https') {
-                $cfg['BASE_URL'] = $this->defaults()['BASE_URL'];
-                $cfg['PROVIDER'] = 'ua';
-            }
+        if ($cfg['NS_URL'] !== '' && !TabCalorieStore::validRemoteUrl($cfg['NS_URL'])) {
+            $cfg['NS_URL'] = ''; // SSRF guard
+        }
+        if ($cfg['PROVIDER'] === 'custom' && !TabCalorieStore::validRemoteUrl($cfg['BASE_URL'])) {
+            $cfg['BASE_URL'] = $this->defaults()['BASE_URL'];
+            $cfg['PROVIDER'] = 'ua';
         }
         $numKeys = array('SYNC_INTERVAL_MIN' => array(15, 10080, 60), 'SYNC_DAYS' => array(1, 90, 2),
             'RETENTION_DAYS' => array(30, 3650, 1825), 'GRAMS_PER_XE' => array(5, 20, 10),
             'CARBS_TARGET' => array(0, 1000, 120), 'CALORIES_TARGET' => array(0, 6000, 1800),
             'PROTEIN_TARGET' => array(0, 400, 90), 'FAT_TARGET' => array(0, 300, 60),
-            'MEAL_NORM_SHARE' => array(10, 50, 25), 'HOOK_DEBOUNCE_SEC' => array(0, 86400, 60),
+            'MEAL_NORM_SHARE' => array(10, 33, 25), 'HOOK_DEBOUNCE_SEC' => array(0, 86400, 60),
             'LOG_RETENTION_DAYS' => array(1, 365, 30), 'LOG_MAX_ROWS' => array(100, 50000, 2000),
             'WRITE_QUEUE_TTL_DAYS' => array(1, 365, 7));
         foreach ($numKeys as $k => $rule) {
@@ -1112,6 +1250,7 @@ EOD;
             if ((string)$oldCfg[$k] !== (string)$cfg[$k]) {
                 $cfg['LAST_ERROR'] = '';
                 $cfg['CIRCUIT_UNTIL'] = 0;
+                $cfg['FAIL_COUNT'] = 0;
                 TabCalorieStore::log('settings', 'ok', 0, 0, 'connection settings changed, error reset');
                 break;
             }
@@ -1120,7 +1259,7 @@ EOD;
         $this->saveConfig();
         TabCalorieStore::refreshStatusObject($cfg);
         if ($cfg['SYNC_ENABLED']) {
-            setGlobal('cycle_tabcalorieControl', 'restart');
+            setGlobal('cycle_tabcalorieControl', 'sync_now');
         }
         TabCalorieStore::log('settings', 'ok', 0, 0, 'settings saved');
         return $cfg;
@@ -1148,8 +1287,8 @@ EOD;
     function doExport()
     {
         $cfg = $this->configAll();
-        $period = isset($_GET['period']) ? (string)$_GET['period'] : 'week';
-        $kind = isset($_GET['kind']) ? (string)$_GET['kind'] : 'daily';
+        $period = isset($_REQUEST['period']) ? (string)$_REQUEST['period'] : 'week';
+        $kind = isset($_REQUEST['kind']) ? (string)$_REQUEST['kind'] : 'daily';
         list($from, $to) = TabCalorieExporter::periodRange($period, TabCalorieStore::lastFilledDate());
         if ($kind === 'detailed') {
             $csv = TabCalorieExporter::detailedCsv($from, $to, $cfg['CSV_DELIMITER']);
@@ -1214,11 +1353,26 @@ EOD;
         }
     }
 
-    function diagnose()
+    /** Diagnostics are cached for 5 minutes to avoid repeated logins. */
+    function diagnose($force = false)
     {
         $cfg = $this->configAll();
+        if ((int)$cfg['DEMO_MODE'] === 1) {
+            return array(array('step' => 'demo', 'ok' => true,
+                'message' => 'offline demo data, no network requests'));
+        }
+        $cached = getGlobal('TabCalorie.DiagResult');
+        $cachedAt = (int)getGlobal('TabCalorie.DiagTs');
+        if (!$force && $cached && time() - $cachedAt < 300) {
+            $decoded = json_decode($cached, true);
+            if (is_array($decoded)) {
+                return $decoded;
+            }
+        }
         $api = new TabCalorieApi($cfg);
         $steps = $api->diagnose();
+        setGlobal('TabCalorie.DiagResult', json_encode($steps, JSON_UNESCAPED_UNICODE));
+        setGlobal('TabCalorie.DiagTs', time());
         $allOk = true;
         foreach ($steps as $s) {
             if (empty($s['ok'])) {
@@ -1230,6 +1384,7 @@ EOD;
         if ($allOk && ($cfg['LAST_ERROR'] !== '' || (int)$cfg['CIRCUIT_UNTIL'] > 0)) {
             $cfg['LAST_ERROR'] = '';
             $cfg['CIRCUIT_UNTIL'] = 0;
+            $cfg['FAIL_COUNT'] = 0;
             $this->config = $cfg;
             $this->saveConfig();
             TabCalorieStore::log('diagnostics', 'ok', 0, 0, 'stale integration error cleared');
@@ -1293,25 +1448,42 @@ EOD;
         if (!$cfg['WRITEBACK_ENABLED']) {
             return array('ok' => false, 'message' => $this->tr('TC_WRITEBACK_OFF'));
         }
+        if (!(int)$cfg['WRITEBACK_CONFIRM']) {
+            return array('ok' => false, 'message' => 'confirmation is required');
+        }
+        $lockFile = ROOT . 'cms/tabcalorie_write.lock';
+        if (is_link($lockFile)) {
+            return array('ok' => false, 'message' => 'unsafe lock path');
+        }
+        $fp = @fopen($lockFile, 'c+');
+        if (!$fp || !@flock($fp, LOCK_EX | LOCK_NB)) {
+            return array('ok' => false, 'message' => 'write-back already running');
+        }
         $id = (int)(isset($_POST['id']) ? $_POST['id'] : 0);
-        $sql = "SELECT * FROM tabcalorie_write_queue WHERE STATUS='draft'";
+        $sql = "SELECT * FROM tabcalorie_write_queue WHERE STATUS='confirmed'";
         if ($id > 0) {
             $sql .= ' AND ID=' . $id;
         }
         $sql .= ' ORDER BY ID LIMIT 20';
         $items = SQLSelect($sql);
         if (!$items) {
+            @flock($fp, LOCK_UN);
+            fclose($fp);
             return array('ok' => true, 'message' => $this->tr('TC_NO_DATA'));
         }
         $api = new TabCalorieApi($cfg);
         try {
             $api->login();
         } catch (Exception $e) {
+            @flock($fp, LOCK_UN);
+            fclose($fp);
             return array('ok' => false, 'message' => $api->getLastError());
         }
         $sent = 0;
         $failed = 0;
         foreach ($items as $item) {
+            // Atomic claim: no second request can pick this item up.
+            TabCalorieStore::setWriteStatus($item['ID'], 'sending', 'claimed');
             $p = json_decode($item['PAYLOAD'], true);
             if (!is_array($p)) {
                 TabCalorieStore::setWriteStatus($item['ID'], 'failed', 'bad payload');
@@ -1328,6 +1500,8 @@ EOD;
                 $failed++;
             }
         }
+        @flock($fp, LOCK_UN);
+        fclose($fp);
         TabCalorieStore::log('writeback', $failed ? 'partial' : 'ok', 0, $sent, 'sent=' . $sent . ' failed=' . $failed);
         return array('ok' => ($sent > 0), 'message' => 'sent=' . $sent . ' failed=' . $failed);
     }
@@ -1341,8 +1515,16 @@ EOD;
     function sync($days = null, $force = false)
     {
         $cfg = $this->configAll();
+        if ((int)$cfg['DEMO_MODE'] === 1) {
+            // Demo mode never touches real tables and never opens a connection.
+            return array('ok' => true, 'rows' => 0,
+                'message' => 'demo mode: sync disabled', 'date' => date('Y-m-d'));
+        }
         $days = $days ?: max(1, (int)$cfg['SYNC_DAYS']);
-        $lockFile = sys_get_temp_dir() . '/tabcalorie_sync.lock';
+        $lockFile = ROOT . 'cms/tabcalorie_sync.lock';
+        if (is_link($lockFile) || !is_dir(ROOT . 'cms')) {
+            return array('ok' => false, 'rows' => 0, 'message' => 'unsafe lock path', 'date' => '');
+        }
         $fp = @fopen($lockFile, 'c+');
         if (!$fp || !@flock($fp, LOCK_EX | LOCK_NB)) {
             return array('ok' => false, 'rows' => 0, 'message' => 'sync already running', 'date' => '');
@@ -1381,7 +1563,7 @@ EOD;
                 if ((int)$cfg['ACTIVITY_ENABLED'] === 1) {
                     TabCalorieStore::saveActivities(TabCalorieStore::parseActivities($diary, $date));
                 }
-                TabCalorieStore::saveDay($date, $diary);
+                TabCalorieStore::saveDay($date, $diary, $cfg);
                 TabCalorieStore::log('sync_day', 'ok', $api->getHttpCode(), count($parsed), $date);
             } catch (Exception $e) {
                 $errors++;
@@ -1394,7 +1576,12 @@ EOD;
 
         $cfg['LAST_SYNC'] = date('Y-m-d H:i:s');
         $cfg['LAST_ERROR'] = $errors ? $api->getLastError() : '';
-        $cfg['CIRCUIT_UNTIL'] = $errors >= 3 ? time() + 900 : 0;
+        $cfg['FAIL_COUNT'] = $errors
+            ? ((int)$cfg['FAIL_COUNT']) + $errors
+            : 0;
+        $cfg['CIRCUIT_UNTIL'] = $cfg['FAIL_COUNT'] > 0
+            ? time() + TabCalorieStore::backoffSeconds($cfg['FAIL_COUNT'])
+            : 0;
         $this->config = $cfg;
         $this->saveConfig();
 
@@ -1416,9 +1603,8 @@ EOD;
     private function setFailure($cfg, $errors)
     {
         $cfg['LAST_ERROR'] = 'login failed';
-        if ($errors >= 3) {
-            $cfg['CIRCUIT_UNTIL'] = time() + 900;
-        }
+        $cfg['FAIL_COUNT'] = ((int)$cfg['FAIL_COUNT']) + max(1, (int)$errors);
+        $cfg['CIRCUIT_UNTIL'] = time() + TabCalorieStore::backoffSeconds($cfg['FAIL_COUNT']);
         $this->config = $cfg;
         $this->saveConfig();
     }

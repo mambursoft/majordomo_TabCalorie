@@ -4,14 +4,14 @@ aliases: [TabCalorie, USAGE.en, Overview]
 tags: [tabcalorie, majordomo, docs]
 lang: en
 plugin: tabcalorie
-version: 1.2.2
+version: 1.3.0
 ---
 
 # Using TabCalorie
 
 [[USAGE|Українська]] · [[USAGE.en|English]] · [[USAGE.ru|Русский]]
 
-Version 1.2.0 · 2026-11-20
+Version 1.3.0 · 2026-11-20
 
 This document describes the plugin interface after
 [[INSTALL.en|installation]] and configuration.
@@ -116,7 +116,7 @@ Daily targets are set with the following configuration keys:
 | `PROTEIN_TARGET` | `90` | Daily protein target, g |
 | `FAT_TARGET` | `60` | Daily fat target, g |
 | `CARBS_TARGET` | `120` | Daily carbohydrate target, g |
-| `MEAL_NORM_SHARE` | `25` (range 10–50, %) | Share of the daily target for a main meal (breakfast/lunch/dinner); the rest of the target is split equally between the snacks (slots 2, 4, 6) |
+| `MEAL_NORM_SHARE` | `25` (range 10–33, %) | Share of the daily target for a main meal (breakfast/lunch/dinner); the rest of the target is split equally between the snacks (slots 2, 4, 6) |
 
 Main-meal target = `daily target × MEAL_NORM_SHARE / 100`; snack target =
 `daily target × (100 − MEAL_NORM_SHARE) / 300`. With `MEAL_NORM_SHARE=25`, main

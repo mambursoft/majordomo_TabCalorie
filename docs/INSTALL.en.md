@@ -4,14 +4,14 @@ aliases: [TabCalorie, INSTALL.en, Installation]
 tags: [tabcalorie, majordomo, settings]
 lang: en
 plugin: tabcalorie
-version: 1.2.2
+version: 1.3.0
 ---
 
 # Installing TabCalorie
 
 [[INSTALL|Українська]] · [[INSTALL.en|English]] · [[INSTALL.ru|Русский]]
 
-Version 1.2.0 · 2026-11-20
+Version 1.3.0 · 2026-11-20
 
 This guide describes how to install the MajorDoMo plugin `tabcalorie` in two
 ways: via Market and manually from a `.tgz` archive.
@@ -173,7 +173,7 @@ Open the module admin page and fill in the configuration keys (stored in
 | `PROTEIN_TARGET` | daily protein target, g | `90` |
 | `FAT_TARGET` | daily fat target, g | `60` |
 | `CARBS_TARGET` | daily carbohydrate target, g | `120` |
-| `MEAL_NORM_SHARE` | share of a main meal (10–50, %) | `25` |
+| `MEAL_NORM_SHARE` | share of a main meal (10–33, %) | `25` |
 | `CSV_DELIMITER` | CSV delimiter | `;` |
 | `WRITEBACK_ENABLED` | write-back to TK | `0` (disabled) |
 | `WRITEBACK_CONFIRM` | write confirmation | `1` |
@@ -184,7 +184,7 @@ Open the module admin page and fill in the configuration keys (stored in
 > [!TIP]
 > `MEAL_NORM_SHARE` sets the share of the daily target for a main meal
 > (breakfast/lunch/dinner — slots 1, 3, 5). The rest of the target is split
-> equally between the snacks (slots 2, 4, 6). Range: 10–50%, default 25%.
+> equally between the snacks (slots 2, 4, 6). Range: 10–33 %, default 25%.
 > When the targets are filled in (non-zero), the **Overview** tab shows a progress
 > bar for carbs, calories, protein and fat for each of the 6 meals relative to
 > the calculated per-meal target; exceeding a target is highlighted in color.

@@ -18,6 +18,7 @@ $tc_schema = array(
         "SLOT_TITLE varchar(255) NOT NULL DEFAULT ''",
         "TITLE varchar(255) NOT NULL DEFAULT ''",
         "FOOD_GUID varchar(64) NOT NULL DEFAULT ''",
+        "ITEM_ID varchar(64) NOT NULL DEFAULT ''",
         "FOOD_URL varchar(255) NOT NULL DEFAULT ''",
         "UNIT_RAW varchar(64) NOT NULL DEFAULT ''",
         "QUANTITY float NOT NULL DEFAULT '0'",
@@ -30,8 +31,8 @@ $tc_schema = array(
         "SUGAR float NOT NULL DEFAULT '0'",
         "SOURCE varchar(16) NOT NULL DEFAULT 'tk'",
         "SYNCED_AT datetime NOT NULL DEFAULT '0000-00-00 00:00:00'",
-        'KEY IDX_TC_ENTRY_DATE (ENTRY_DATE)',
-        'KEY IDX_TC_ENTRY_GUID (FOOD_GUID)',
+        'KEY (ENTRY_DATE)',
+        'KEY (FOOD_GUID)',
         'UNIQUE KEY UQ_TC_ENTRY (ENTRY_KEY(64))',
     ),
     'tabcalorie_foods' => array(
@@ -73,7 +74,7 @@ $tc_schema = array(
         'NOTES text',
         'RAW_JSON longtext',
         "UPDATED datetime NOT NULL DEFAULT '0000-00-00 00:00:00'",
-        'KEY IDX_TC_DAY_DATE (DAY_DATE)',
+        'KEY (DAY_DATE)',
     ),
     'tabcalorie_activities' => array(
         'ID int(10) unsigned NOT NULL auto_increment',
@@ -89,7 +90,7 @@ $tc_schema = array(
         "DURATION float NOT NULL DEFAULT '0'",
         'RAW_JSON text',
         "SYNCED_AT datetime NOT NULL DEFAULT '0000-00-00 00:00:00'",
-        'KEY IDX_TC_ACTIVITY_DATE (ACTIVITY_DATE)',
+        'KEY (ACTIVITY_DATE)',
         'UNIQUE KEY UQ_TC_ACTIVITY (ACTIVITY_KEY(64))',
     ),
     'tabcalorie_sync_log' => array(

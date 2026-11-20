@@ -82,6 +82,7 @@ try {
     check('custom unit guid', isset($body2['unitGuid']) && $body2['unitGuid'] === 'unit-custom-123');
     check('custom unit options',
         isset($body2['unitOptions'][0]['multiplier']) && $body2['unitOptions'][0]['multiplier'] == 200);
+    check('single potraviny prefix', isset($body2['url']) && $body2['url'] === 'potraviny/rys');
 } catch (Exception $e) {
     check('write-back ok', false, $api->getLastError());
 }

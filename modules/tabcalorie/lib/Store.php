@@ -8,7 +8,10 @@
 
 class TabCalorieStore
 {
-    /** Parse "1 234,5" / "12.5" / null into float. */
+    /** pvalues.VALUE is TEXT (64 KB) in MajorDoMo - keep a safe byte margin. */
+    const MAX_RAW_BYTES = 60000;
+
+    /** Parse "1 234,5" / "1,234.5" / "12.5" / null into float. */
     public static function num($value)
     {
         if ($value === null || $value === '' || is_array($value)) {
@@ -17,10 +20,26 @@ class TabCalorieStore
         if (is_numeric($value)) {
             return (float)$value;
         }
-        $s = str_replace(array("\xc2\xa0", ' ', "\t"), '', (string)$value);
-        $s = str_replace(',', '.', $s);
-        $s = preg_replace('/[^0-9.\-+eE]/', '', $s);
-        return is_numeric($s) ? (float)$s : 0.0;
+        $s = str_replace(array("\xc2\xa0", ' ', "\t", "'"), '', (string)$value);
+        if (!preg_match('/[0-9]/', $s)) {
+            return 0.0;
+        }
+        $comma = strrpos($s, ',');
+        $dot = strrpos($s, '.');
+        if ($comma !== false && $dot !== false) {
+            if ($comma > $dot) {
+                $s = str_replace('.', '', $s);
+                $s = str_replace(',', '.', $s);
+            } else {
+                $s = str_replace(',', '', $s);
+            }
+        } elseif ($comma !== false) {
+            $s = str_replace(',', '.', $s);
+        }
+        if (!preg_match('/^[+-]?[0-9]*\.?[0-9]+(?:[eE][+-]?[0-9]+)?$/', $s)) {
+            return 0.0;
+        }
+        return (float)$s;
     }
 
     public static function round1($v)
@@ -35,22 +54,39 @@ class TabCalorieStore
     public static function parseUnit($raw)
     {
         $raw = trim((string)$raw);
+        $raw = str_replace("\xd1\x85", 'x', $raw); // Cyrillic "х" -> "x"
+        if (preg_match('/([0-9]+(?:[.,][0-9]+)?)\s*(г|кг|мл|л|g|ml|kg|l)\s*\)/iu', $raw, $m)) {
+            $q = self::num($m[1]);
+            if (stripos($m[2], 'кг') === 0 || strtolower($m[2]) === 'kg') {
+                $q *= 1000;
+            }
+            return array($q, mb_strtolower($m[2], 'UTF-8'));
+        }
         if (preg_match('/^([0-9]+(?:[.,][0-9]+)?)\s*x\s*([0-9]+(?:[.,][0-9]+)?)\s*(.+)$/iu', $raw, $m)) {
             return array(self::num($m[1]) * self::num($m[2]), trim($m[3]));
         }
         if (preg_match('/^([0-9]+(?:[.,][0-9]+)?)\s*x\s*(.+)$/iu', $raw, $m)) {
             return array(self::num($m[1]), trim($m[2]));
         }
-        if (preg_match('/^([0-9]+(?:[.,][0-9]+)?)\s*(g|ml|ks|pc|шт)\b/iu', $raw, $m)) {
-            return array(self::num($m[1]), strtolower($m[2]));
+        if (preg_match('/^([0-9]+(?:[.,][0-9]+)?)\s*(г|кг|мл|л|g|ml|kg|l|шт|ks|pc)\b/iuU', $raw, $m)) {
+            $q = self::num($m[1]);
+            $unit = mb_strtolower($m[2], 'UTF-8');
+            if (in_array($unit, array('кг', 'kg'), true)) {
+                $q *= 1000;
+                $unit = 'g';
+            }
+            return array($q, $unit);
         }
         return array(0.0, $raw);
     }
 
-    /** Unique key for an entry, used for idempotent upserts. */
-    private static function entryKey($date, $slotId, $foodGuid, $unitRaw)
+    /**
+     * Unique key for an entry. Includes the API item id so two identical foods
+     * with the same weight inside one meal stay two separate records.
+     */
+    private static function entryKey($date, $slotId, $foodGuid, $unitRaw, $itemId = '')
     {
-        return md5($date . '|' . $slotId . '|' . $foodGuid . '|' . $unitRaw);
+        return md5($date . '|' . $slotId . '|' . $foodGuid . '|' . $unitRaw . '|' . $itemId);
     }
 
     /**
@@ -71,10 +107,12 @@ class TabCalorieStore
             $slotId = (int)(isset($slot['id']) ? $slot['id'] : ($idx + 1));
             $slotTitle = isset($slot['title']) ? (string)$slot['title'] : '';
             $foods = isset($slot['foodstuff']) && is_array($slot['foodstuff']) ? $slot['foodstuff'] : array();
-            foreach ($foods as $item) {
+            foreach ($foods as $itemIdx => $item) {
                 if (!is_array($item)) {
                     continue;
                 }
+                $itemId = isset($item['id']) && $item['id'] !== ''
+                    ? (string)$item['id'] : ('idx' . $itemIdx);
                 $title = isset($item['title']) ? trim((string)$item['title']) : '';
                 if ($title === '') {
                     continue;
@@ -89,7 +127,8 @@ class TabCalorieStore
                 }
                 list($quantity, $unit) = self::parseUnit($unitRaw);
                 $row = array(
-                    'ENTRY_KEY' => self::entryKey($date, $slotId, $foodGuid, $unitRaw),
+                    'ITEM_ID' => $itemId,
+                    'ENTRY_KEY' => self::entryKey($date, $slotId, $foodGuid, $unitRaw, $itemId),
                     'ENTRY_DATE' => $date,
                     'SLOT_ID' => $slotId,
                     'SLOT_TITLE' => $slotTitle,
@@ -139,6 +178,12 @@ class TabCalorieStore
             if ($id === '') {
                 $id = md5($title . '|' . $date . '|' . $idx);
             }
+            $energy = self::num(isset($a['energy']) ? $a['energy'] : 0);
+            $unit = isset($a['energyUnit']) ? (string)$a['energyUnit'] : 'kcal';
+            if (stripos($unit, 'kj') !== false) {
+                $energy = $energy / 4.184;
+                $unit = 'kcal';
+            }
             $rows[] = array(
                 'ACTIVITY_KEY' => md5($date . '|' . $id),
                 'ACTIVITY_DATE' => $date,
@@ -147,8 +192,8 @@ class TabCalorieStore
                 'TYPE' => isset($a['type']) ? (string)$a['type'] : 'activity',
                 'ACTIVITY_TYPE' => isset($a['activityType']) ? (string)$a['activityType'] : '',
                 'STEPS' => self::round1(self::num(isset($a['steps']) ? $a['steps'] : 0)),
-                'ENERGY' => self::round1(self::num(isset($a['energy']) ? $a['energy'] : 0)),
-                'UNIT' => isset($a['energyUnit']) ? (string)$a['energyUnit'] : 'kcal',
+                'ENERGY' => self::round1($energy),
+                'UNIT' => $unit,
                 'DURATION' => self::round1(self::num(isset($a['duration']) ? $a['duration'] : 0)),
                 'RAW_JSON' => mb_substr(json_encode($a, JSON_UNESCAPED_UNICODE), 0, 4000),
                 'SYNCED_AT' => date('Y-m-d H:i:s'),
@@ -196,8 +241,9 @@ class TabCalorieStore
     }
 
     /** Recompute and store daily totals from entries. */
-    public static function saveDay($date, $diary = null)
+    public static function saveDay($date, $diary = null, $cfg = array())
     {
+        $activityEnabled = !isset($cfg['ACTIVITY_ENABLED']) || (int)$cfg['ACTIVITY_ENABLED'] === 1;
         $sql = "SELECT
                     COUNT(*) AS CNT,
                     SUM(ENERGY) AS ENERGY,
@@ -223,9 +269,9 @@ class TabCalorieStore
             'SUGAR' => self::round1(isset($sum['SUGAR']) ? $sum['SUGAR'] : 0),
             'FOODSTUFF_COUNT' => (int)(isset($sum['CNT']) ? $sum['CNT'] : 0),
             'SLOT_COUNT' => (int)(isset($sum['SLOTS']) ? $sum['SLOTS'] : 0),
-            'STEPS' => self::round1(isset($act['S']) ? $act['S'] : 0),
-            'ACTIVITY_KCAL' => self::round1(isset($act['E']) ? $act['E'] : 0),
-            'ACTIVITY_COUNT' => (int)(isset($act['N']) ? $act['N'] : 0),
+            'STEPS' => $activityEnabled ? self::round1(isset($act['S']) ? $act['S'] : 0) : 0,
+            'ACTIVITY_KCAL' => $activityEnabled ? self::round1(isset($act['E']) ? $act['E'] : 0) : 0,
+            'ACTIVITY_COUNT' => $activityEnabled ? (int)(isset($act['N']) ? $act['N'] : 0) : 0,
             'RAW_JSON' => $old['RAW_JSON'],
             'UPDATED' => date('Y-m-d H:i:s'),
         );
@@ -249,7 +295,7 @@ class TabCalorieStore
         $day['NOTES'] = mb_substr(implode(' | ', $notes), 0, 1000);
         if (is_array($diary)) {
             $raw = json_encode($diary, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-            $day['RAW_JSON'] = mb_substr((string)$raw, 0, 2000000);
+            $day['RAW_JSON'] = mb_strcut((string)$raw, 0, self::MAX_RAW_BYTES, 'UTF-8');
         }
         if ($old['ID']) {
             $day['ID'] = $old['ID'];
@@ -420,7 +466,11 @@ class TabCalorieStore
         return true;
     }
 
-    /** Lightweight refresh of Status/Raw without a full sync (page loads, failures). */
+    /**
+     * Lightweight Status refresh for page loads and failure paths.
+     * Raw is intentionally NOT written here: it is large and is refreshed by
+     * updateObject() after a real sync only.
+     */
     public static function refreshStatusObject($cfg)
     {
         if (!function_exists('getObject')) {
@@ -431,7 +481,6 @@ class TabCalorieStore
             return false;
         }
         $obj->setProperty('Status', self::computeStatus($cfg), 0, 'tabcalorie');
-        $obj->setProperty('Raw', self::rawPayload(), 0, 'tabcalorie');
         return true;
     }
 
@@ -598,7 +647,11 @@ class TabCalorieStore
 
         $ttl = max(1, (int)(isset($cfg['WRITE_QUEUE_TTL_DAYS']) ? $cfg['WRITE_QUEUE_TTL_DAYS'] : 7));
         $queueCut = date('Y-m-d H:i:s', time() - $ttl * 86400);
-        SQLExec("DELETE FROM tabcalorie_write_queue WHERE CREATED_AT<'" . DBSafe($queueCut) . "'");
+        SQLExec("DELETE FROM tabcalorie_write_queue WHERE CREATED_AT<'" . DBSafe($queueCut) .
+            "' AND STATUS!='ns_sent'");
+        // Nightscout de-duplication markers live as long as the underlying data.
+        SQLExec("DELETE FROM tabcalorie_write_queue WHERE STATUS='ns_sent' AND CREATED_AT<'" .
+            DBSafe($cut) . "'");
         return $cut;
     }
 
@@ -634,7 +687,36 @@ class TabCalorieStore
             'activities' => self::activityRows($date),
         );
         $json = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        return mb_substr((string)$json, 0, 2000000);
+        return mb_strcut((string)$json, 0, self::MAX_RAW_BYTES, 'UTF-8');
+    }
+
+    /** Only allow public HTTPS hosts without embedded credentials (SSRF guard). */
+    public static function validRemoteUrl($url)
+    {
+        $p = parse_url((string)$url);
+        if (!$p || !isset($p['scheme'], $p['host']) || strtolower($p['scheme']) !== 'https') {
+            return false;
+        }
+        if (isset($p['user']) || isset($p['pass'])) {
+            return false;
+        }
+        $host = $p['host'];
+        if (filter_var($host, FILTER_VALIDATE_IP)) {
+            return false;
+        }
+        $ip = gethostbyname($host);
+        if ($ip === $host || filter_var($ip, FILTER_VALIDATE_IP,
+            FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+            return false;
+        }
+        return true;
+    }
+
+    /** Exponential backoff: 60s, 120s, 240s ... capped at 1 hour. */
+    public static function backoffSeconds($failCount)
+    {
+        $n = max(1, (int)$failCount);
+        return (int)min(3600, 60 * pow(2, $n - 1));
     }
 
     /**

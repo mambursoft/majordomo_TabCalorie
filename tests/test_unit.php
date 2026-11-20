@@ -28,6 +28,9 @@ echo "== Store::num ==\n";
 check('Czech spaced decimal', abs(TabCalorieStore::num('1 234,5') - 1234.5) < 0.001);
 check('plain float', abs(TabCalorieStore::num('12.5') - 12.5) < 0.001);
 check('null -> zero', TabCalorieStore::num(null) === 0.0);
+check('US thousands', abs(TabCalorieStore::num('1,234.5') - 1234.5) < 0.001);
+check('EU thousands', abs(TabCalorieStore::num('1.234,5') - 1234.5) < 0.001);
+check('garbage rejected', TabCalorieStore::num('abc123') === 0.0);
 
 echo "== Store::parseUnit ==\n";
 $u = TabCalorieStore::parseUnit('166 x 1 g');
@@ -37,6 +40,12 @@ $u2 = TabCalorieStore::parseUnit('200 ml');
 check('plain quantity', abs($u2[0] - 200) < 0.001, json_encode($u2));
 $u3 = TabCalorieStore::parseUnit('2 x 200 g');
 check('multiplier applied', abs($u3[0] - 400) < 0.001 && $u3[1] === 'g', json_encode($u3));
+$u4 = TabCalorieStore::parseUnit('100 г');
+check('cyrillic gram', abs($u4[0] - 100) < 0.001 && $u4[1] === 'г', json_encode($u4));
+$u5 = TabCalorieStore::parseUnit('166 х 1 g');
+check('cyrillic x', abs($u5[0] - 166) < 0.001 && $u5[1] === 'g', json_encode($u5));
+$u6 = TabCalorieStore::parseUnit('1 склянка (200 ml)');
+check('parenthesized unit', abs($u6[0] - 200) < 0.001 && $u6[1] === 'ml', json_encode($u6));
 
 echo "== Store::parseDiary ==\n";
 $fixture = json_decode(file_get_contents(__DIR__ . '/fixtures/diary.json'), true);
@@ -48,8 +57,16 @@ check('carbs parsed', abs($rows[0]['CARBOHYDRATE'] - 40) < 0.01 && abs($rows[1][
 check('unit raw kept', $rows[0]['UNIT_RAW'] === '150 x 1 g');
 check('guid used', $rows[0]['FOOD_GUID'] === 'food-oat');
 check('source tk', $rows[0]['SOURCE'] === 'tk');
+
+$dupDiary = array('times' => array(array('id' => '1', 'title' => 'Сніданок', 'foodstuff' => array(
+    array('id' => 'same-1', 'guidType' => 'apple', 'title' => 'Яблуко', 'unit' => '100 x 1 g', 'energy' => '50', 'carbohydrate' => '10'),
+    array('id' => 'same-2', 'guidType' => 'apple', 'title' => 'Яблуко', 'unit' => '100 x 1 g', 'energy' => '50', 'carbohydrate' => '10'),
+))));
+$dupRows = TabCalorieStore::parseDiary($dupDiary, '2026-11-19');
+check('two identical foods kept', count($dupRows) === 2);
+check('duplicate keys differ', $dupRows[0]['ENTRY_KEY'] !== $dupRows[1]['ENTRY_KEY']);
 $idempotentKey = $rows[0]['ENTRY_KEY'];
-check('stable key', $idempotentKey === md5('2026-11-19|1|food-oat|150 x 1 g'));
+check('stable key', $idempotentKey === md5('2026-11-19|1|food-oat|150 x 1 g|e1'));
 
 echo "== Store::overview ==\n";
 $ov = TabCalorieStore::overview('2026-11-19');
@@ -124,6 +141,21 @@ setGlobal('cycle_tabcalorieRunTs', time() - 3600);
 check('status stale cycle',
     TabCalorieStore::computeStatus(array('SYNC_ENABLED' => 1, 'LAST_ERROR' => '', 'CIRCUIT_UNTIL' => 0)) === 0);
 setGlobal('cycle_tabcalorieRunTs', time());
+
+echo "== Backoff / URL guard / Raw cap ==\n";
+check('backoff 60s', TabCalorieStore::backoffSeconds(1) === 60);
+check('backoff 120s', TabCalorieStore::backoffSeconds(2) === 120);
+check('backoff capped', TabCalorieStore::backoffSeconds(20) === 3600);
+check('reject http URL', TabCalorieStore::validRemoteUrl('http://example.org') === false);
+check('reject IP literal', TabCalorieStore::validRemoteUrl('https://127.0.0.1') === false);
+check('reject userinfo', TabCalorieStore::validRemoteUrl('https://user:pass@example.org') === false);
+check('raw byte cap', TabCalorieStore::MAX_RAW_BYTES <= 60000);
+
+echo "== CSV columns ==\n";
+$csvDaily = TabCalorieExporter::dailyCsv('2026-11-19', '2026-11-19', ';');
+$csvDetailed = TabCalorieExporter::detailedCsv('2026-11-19', '2026-11-19', ';');
+check('daily header columns', count(explode(';', trim(explode("\r\n", $csvDaily)[0]))) >= 14);
+check('detailed header columns', count(explode(';', trim(explode("\r\n", $csvDetailed)[0]))) >= 12);
 
 echo "== Chart ==\n";
 $url = TabCalorieChart::standardUrl(7);

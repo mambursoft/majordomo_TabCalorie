@@ -25,7 +25,11 @@ require_once(dirname(__FILE__) . '/../modules/tabcalorie/tabcalorie.class.php');
 
 set_time_limit(0);
 
-$lockFile = sys_get_temp_dir() . '/cycle_tabcalorie.lock';
+$lockFile = ROOT . 'cms/cycle_tabcalorie.lock';
+if (is_link($lockFile)) {
+    echo date('H:i:s') . " [TabCalorie] Unsafe lock path. Exiting.\n";
+    exit(0);
+}
 $lockFp = @fopen($lockFile, 'c+');
 if ($lockFp) {
     if (!@flock($lockFp, LOCK_EX | LOCK_NB)) {
@@ -44,21 +48,23 @@ $module = new tabcalorie();
 echo date('H:i:s') . " [TabCalorie] cycle started\n";
 
 while (true) {
+    $didSync = false;
     $ctrl = (string)getGlobal($ctrlVar);
     if ($ctrl !== '') {
         setGlobal($ctrlVar, '', 1);
         if ($ctrl === 'sync_now') {
             $module->sync(null, true);
+            $didSync = true;
         }
     }
 
     $cfg = $module->configAll();
-    if ((int)$cfg['SYNC_ENABLED'] === 1) {
+    if (!$didSync && (int)$cfg['SYNC_ENABLED'] === 1) {
         $intervalMin = max(15, (int)$cfg['SYNC_INTERVAL_MIN']);
         $last = (int)getGlobal('TabCalorie.LastRunTs');
         if (time() - $last >= $intervalMin * 60) {
-            setGlobal('TabCalorie.LastRunTs', time());
             $result = $module->sync((int)$cfg['SYNC_DAYS'], false);
+            setGlobal('TabCalorie.LastRunTs', time());
             echo date('H:i:s') . ' [TabCalorie] sync rows=' . $result['rows'] .
                 ' ok=' . ($result['ok'] ? '1' : '0') . "\n";
         }

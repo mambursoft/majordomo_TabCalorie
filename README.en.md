@@ -4,7 +4,7 @@ aliases: [TabCalorie, Home, Readme]
 tags: [tabcalorie, majordomo, docs]
 lang: en
 plugin: tabcalorie
-version: 1.2.2
+version: 1.3.0
 ---
 
 # TabCalorie
@@ -12,7 +12,7 @@ version: 1.2.2
 > [!NOTE]
 > A MajorDoMo plugin for local carbohydrate tracking based on data from the
 > "Calorie Table" app (TK / Dine4Fit / `tablycjakalorijnosti.com.ua`).
-> Default documentation language: Ukrainian. Version 1.2.0, 2026-11-20.
+> Default documentation language: Ukrainian. Version 1.3.0, 2026-11-20.
 
 [[README|Українська]] · [[README.en|English]] · [[README.ru|Русский]]
 
@@ -161,7 +161,7 @@ written to logs or the repository.
 | `PROTEIN_TARGET` | grams | `90` | Daily protein target, g. |
 | `FAT_TARGET` | grams | `60` | Daily fat target, g. |
 | `CARBS_TARGET` | grams | `120` | Daily carbohydrate target, g. |
-| `MEAL_NORM_SHARE` | percent (10–50) | `25` | Share of the daily target for a main meal (breakfast/lunch/dinner); the rest of the target is split equally between the snacks (slots 2, 4, 6). |
+| `MEAL_NORM_SHARE` | percent (10–33) | `25` | Share of the daily target for a main meal (breakfast/lunch/dinner); the rest of the target is split equally between the snacks (slots 2, 4, 6). |
 | `CSV_DELIMITER` | char | `;` | CSV delimiter (Excel UA friendly). |
 | `WRITEBACK_ENABLED` | 0/1 | `0` | Unofficial write-back to TK — **disabled**. |
 | `WRITEBACK_CONFIRM` | 0/1 | `1` | Require explicit confirmation for each write. |

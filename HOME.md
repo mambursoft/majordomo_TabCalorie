@@ -4,7 +4,7 @@ aliases: [TabCalorie, HOME, MOC, Map of Content]
 tags: [tabcalorie, majordomo, docs]
 lang: uk
 plugin: tabcalorie
-version: 1.2.2
+version: 1.3.0
 ---
 
 # HOME — карта контенту TabCalorie
@@ -52,7 +52,7 @@ version: 1.2.2
 `LOG_MAX_ROWS` (2000), `WRITE_QUEUE_TTL_DAYS` (7).
 
 **Ключі версії 1.1.0:** `CALORIES_TARGET` (1800), `PROTEIN_TARGET` (90),
-`FAT_TARGET` (60), `CARBS_TARGET` (120), `MEAL_NORM_SHARE` (25, діапазон 10–50, %).
+`FAT_TARGET` (60), `CARBS_TARGET` (120), `MEAL_NORM_SHARE` (25, діапазон 10–33, %).
 
 - [[PROMPT|Промпт створення плагіна]] — вимоги до реалізації та зафіксовані рішення.
 - [[CHANGELOG|Журнал змін]] — історія версій 1.0.0 → 1.1.0 → 1.2.0.
