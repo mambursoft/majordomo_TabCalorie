@@ -7,7 +7,7 @@
  */
 
 $strings = array(
-    'TC_TITLE'              => array('TabCalorie — контроль вуглеводів', 'TabCalorie — carbohydrate control', 'TabCalorie — контроль углеводов'),
+    'TC_TITLE'              => array('Таблиця калорійності', 'Calorie Table', 'Таблица калорийности'),
     'TC_SUBTITLE'           => array('Імпорт щоденника «Таблиця калорійності» в MajorDoMo', 'Food diary import from TabCalorie into MajorDoMo', 'Импорт дневника «Таблица калорийности» в MajorDoMo'),
     'TC_TAB_OVERVIEW'       => array('Огляд', 'Overview', 'Обзор'),
     'TC_TAB_HISTORY'        => array('Історія', 'History', 'История'),
@@ -81,6 +81,7 @@ $strings = array(
     'TC_CHECK_CONNECTION'   => array('Перевірити підключення', 'Check connection', 'Проверить подключение'),
     'TC_DISHES_BY_MEAL'     => array('Страви за добу за прийомами їжі', 'Dishes of the day by meal', 'Блюда за день по приёмам пищи'),
     'TC_QTY'                => array('Кількість', 'Amount', 'Количество'),
+    'TC_MEAL_TIME'          => array('час', 'time', 'время'),
     'TC_CONFIRM_SEND'       => array('Підтвердити', 'Confirm', 'Подтвердить'),
     'TC_CANCEL'             => array('Скасувати', 'Cancel', 'Отменить'),
     'TC_DIAGNOSTICS'        => array('Діагностика підключення до ТК', 'TK connection diagnostics', 'Диагностика подключения к ТК'),

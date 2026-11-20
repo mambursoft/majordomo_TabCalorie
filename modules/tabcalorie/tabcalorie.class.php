@@ -23,14 +23,28 @@ require_once(dirname(__FILE__) . '/lib/Chart.php');
 
 class tabcalorie extends module
 {
-    const VERSION = '1.3.1';
+    const VERSION = '1.4.0';
+
+    /**
+     * Localized module name. The admin menu is built from project_modules.TITLE
+     * before module dictionaries load, so we store a plain string per language.
+     */
+    static function localizedTitle()
+    {
+        $lang = defined('SETTINGS_SITE_LANGUAGE') ? strtolower(SETTINGS_SITE_LANGUAGE) : 'uk';
+        $map = array(
+            'uk' => 'Таблиця калорійності',
+            'ua' => 'Таблиця калорійності',
+            'ru' => 'Таблица калорийности',
+            'en' => 'Calorie Table',
+        );
+        return isset($map[$lang]) ? $map[$lang] : $map['uk'];
+    }
 
     function tabcalorie()
     {
         $this->name            = 'tabcalorie';
-        // Plain string: the admin menu is rendered BEFORE module language files
-        // are loaded, so a <#LANG_TC_TITLE#> placeholder would stay unresolved.
-        $this->title           = 'TabCalorie';
+        $this->title           = self::localizedTitle();
         $this->module_category = '<#LANG_SECTION_APPLICATIONS#>';
         $this->checkInstalled();
     }
@@ -141,6 +155,7 @@ tabcalorie_entries: ENTRY_KEY varchar(64) NOT NULL DEFAULT ''
 tabcalorie_entries: ENTRY_DATE date NOT NULL
 tabcalorie_entries: SLOT_ID int(11) NOT NULL DEFAULT '0'
 tabcalorie_entries: SLOT_TITLE varchar(255) NOT NULL DEFAULT ''
+tabcalorie_entries: MEAL_TIME varchar(16) NOT NULL DEFAULT ''
 tabcalorie_entries: TITLE varchar(255) NOT NULL DEFAULT ''
 tabcalorie_entries: FOOD_GUID varchar(64) NOT NULL DEFAULT ''
 tabcalorie_entries: ITEM_ID varchar(64) NOT NULL DEFAULT ''
@@ -279,9 +294,9 @@ EOD;
                 'CATEGORY' => $this->module_category, 'DATA' => '',
             );
             SQLInsert('project_modules', $newModule);
-        } elseif (strpos((string)$rec['TITLE'], '<#LANG_') !== false || trim((string)$rec['TITLE']) === '') {
-            // Repair installations created before v1.2.1: the menu is rendered
-            // before module dictionaries load, so the placeholder was empty.
+        } elseif ((string)$rec['TITLE'] !== $this->title) {
+            // Keep the menu label in sync with the site language (and repair
+            // old placeholder-based titles from versions <= 1.2.1).
             $rec['TITLE'] = $this->title;
             SQLUpdate('project_modules', $rec);
         }
@@ -312,7 +327,7 @@ EOD;
             $p = SQLSelectOne("SELECT * FROM plugins WHERE " . $key . "='tabcalorie'");
             $data = array(
                 $key => 'tabcalorie',
-                'TITLE' => 'TabCalorie',
+                'TITLE' => $this->title,
                 'AUTHOR' => 'mambursoft',
                 'SUPPORT_URL' => 'https://github.com/mambursoft/majordomo_TabCalorie',
                 'REPOSITORY_URL' => 'https://github.com/mambursoft/majordomo_TabCalorie',
@@ -664,6 +679,7 @@ EOD;
         $dishes = array();
         foreach ($rows as $r) {
             $dishes[(int)$r['SLOT_ID']][] = array(
+                'MEAL_TIME' => TabCalorieStore::mealTime($r['SLOT_ID'], $r['MEAL_TIME']),
                 'TITLE' => $r['TITLE'],
                 'QUANTITY' => $r['QUANTITY'],
                 'UNIT' => $r['UNIT'],
@@ -757,23 +773,26 @@ EOD;
         $html .= '<div class="tc-panel"><div class="tc-panel-head">' .
             $this->e($this->tr('TC_DISHES_BY_MEAL')) . ' — ' . $this->e($ov['date']) .
             '</div><div class="tc-table-wrap"><table class="tc-table"><thead><tr><th>' .
-            $this->e($this->tr('TC_FOOD')) . '</th><th>' . $this->e($this->tr('TC_QTY')) .
-            '</th><th>' . $this->e($this->tr('TC_KCAL')) . '</th><th>' .
-            $this->e($this->tr('TC_CARBS')) . '</th></tr></thead><tbody>';
+            $this->e($this->tr('TC_FOOD')) . '</th><th>' . $this->e($this->tr('TC_CARBS')) .
+            '</th><th>' . $this->e($this->tr('TC_QTY')) . '</th><th>' .
+            $this->e($this->tr('TC_KCAL')) . '</th></tr></thead><tbody>';
         $hasDishes = false;
         for ($i = 1; $i <= 6; $i++) {
             if (empty($dishes[$i])) {
                 continue;
             }
             $hasDishes = true;
+            $first = $dishes[$i][0];
+            $time = TabCalorieStore::mealTime($i, isset($first['MEAL_TIME']) ? $first['MEAL_TIME'] : '');
             $html .= '<tr class="tc-group"><th colspan="4">' .
-                $this->e($this->tr(TabCalorieStore::slotKey($i))) . '</th></tr>';
+                $this->e($this->tr(TabCalorieStore::slotKey($i))) . ' · ' .
+                $this->e($this->tr('TC_MEAL_TIME')) . ' ' . $this->e($time) . '</th></tr>';
             foreach ($dishes[$i] as $d) {
                 $qty = TabCalorieStore::num($d['QUANTITY']);
                 $amount = $qty > 0 ? TabCalorieStore::round1($qty) . ' ' . $this->e($d['UNIT']) : $this->e($d['UNIT']);
-                $html .= '<tr><td>' . $this->e($d['TITLE']) . '</td><td>' . $amount . '</td><td>' .
-                    TabCalorieStore::round1($d['ENERGY']) . '</td><td>' .
-                    TabCalorieStore::round1($d['CARBOHYDRATE']) . ' г</td></tr>';
+                $html .= '<tr><td>' . $this->e($d['TITLE']) . '</td><td>' .
+                    TabCalorieStore::round1($d['CARBOHYDRATE']) . ' г</td><td>' . $amount . '</td><td>' .
+                    TabCalorieStore::round1($d['ENERGY']) . '</td></tr>';
             }
         }
         if (!$hasDishes) {

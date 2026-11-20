@@ -16,6 +16,7 @@ $tc_schema = array(
         'ENTRY_DATE date NOT NULL',
         "SLOT_ID int(11) NOT NULL DEFAULT '0'",
         "SLOT_TITLE varchar(255) NOT NULL DEFAULT ''",
+        "MEAL_TIME varchar(16) NOT NULL DEFAULT ''",
         "TITLE varchar(255) NOT NULL DEFAULT ''",
         "FOOD_GUID varchar(64) NOT NULL DEFAULT ''",
         "ITEM_ID varchar(64) NOT NULL DEFAULT ''",

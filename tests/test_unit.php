@@ -57,6 +57,7 @@ check('carbs parsed', abs($rows[0]['CARBOHYDRATE'] - 40) < 0.01 && abs($rows[1][
 check('unit raw kept', $rows[0]['UNIT_RAW'] === '150 x 1 g');
 check('guid used', $rows[0]['FOOD_GUID'] === 'food-oat');
 check('source tk', $rows[0]['SOURCE'] === 'tk');
+check('meal time parsed', $rows[0]['MEAL_TIME'] === '08:15');
 
 $dupDiary = array('times' => array(array('id' => '1', 'title' => 'Сніданок', 'foodstuff' => array(
     array('id' => 'same-1', 'guidType' => 'apple', 'title' => 'Яблуко', 'unit' => '100 x 1 g', 'energy' => '50', 'carbohydrate' => '10'),
@@ -84,6 +85,8 @@ $byMeal = TabCalorieStore::dayDishes('2026-11-19');
 check('grouped by slot', isset($byMeal[1], $byMeal[3]) && count($byMeal) === 2);
 check('dish title kept', $byMeal[1][0]['TITLE'] === 'Вівсянка');
 check('slot 2 empty', empty($byMeal[2]));
+check('meal time from API', TabCalorieStore::mealTime(1, $byMeal[1][0]['MEAL_TIME']) === '08:15');
+check('meal time fallback', TabCalorieStore::mealTime(3, '') === '13:00');
 
 echo "== Exporter ==\n";
 list($from, $to) = TabCalorieExporter::periodRange('week', '2026-11-19');

@@ -106,6 +106,16 @@ class TabCalorieStore
             }
             $slotId = (int)(isset($slot['id']) ? $slot['id'] : ($idx + 1));
             $slotTitle = isset($slot['title']) ? (string)$slot['title'] : '';
+            $mealTime = '';
+            foreach (array('time', 'timeUser', 'timeFrom') as $timeKey) {
+                if (!empty($slot[$timeKey]) && is_scalar($slot[$timeKey])) {
+                    $candidate = trim((string)$slot[$timeKey]);
+                    if (preg_match('/^\d{1,2}:\d{2}/', $candidate)) {
+                        $mealTime = mb_substr($candidate, 0, 5);
+                        break;
+                    }
+                }
+            }
             $foods = isset($slot['foodstuff']) && is_array($slot['foodstuff']) ? $slot['foodstuff'] : array();
             foreach ($foods as $itemIdx => $item) {
                 if (!is_array($item)) {
@@ -132,6 +142,7 @@ class TabCalorieStore
                     'ENTRY_DATE' => $date,
                     'SLOT_ID' => $slotId,
                     'SLOT_TITLE' => $slotTitle,
+                    'MEAL_TIME' => $mealTime,
                     'TITLE' => $title,
                     'FOOD_GUID' => $foodGuid,
                     'FOOD_URL' => isset($item['url']) ? (string)$item['url'] : '',
@@ -376,6 +387,18 @@ class TabCalorieStore
         $keys = array(1 => 'TC_BREAKFAST', 2 => 'TC_SNACK1', 3 => 'TC_LUNCH',
             4 => 'TC_SNACK2', 5 => 'TC_DINNER', 6 => 'TC_LATE_DINNER');
         return isset($keys[(int)$id]) ? $keys[(int)$id] : 'TC_MEAL';
+    }
+
+    /** Meal time from the API, with a conventional fallback schedule. */
+    public static function mealTime($slotId, $raw = '')
+    {
+        $raw = trim((string)$raw);
+        if (preg_match('/^\d{1,2}:\d{2}/', $raw)) {
+            return mb_substr($raw, 0, 5);
+        }
+        $defaults = array(1 => '08:00', 2 => '10:00', 3 => '13:00',
+            4 => '16:00', 5 => '19:00', 6 => '22:00');
+        return isset($defaults[(int)$slotId]) ? $defaults[(int)$slotId] : '';
     }
 
     /**
@@ -665,7 +688,7 @@ class TabCalorieStore
     /** All dishes of a day, grouped by meal slot (slot_id => rows). */
     public static function dayDishes($date)
     {
-        $rows = SQLSelect("SELECT ID, SLOT_ID, SLOT_TITLE, TITLE, QUANTITY, UNIT, UNIT_RAW,
+        $rows = SQLSelect("SELECT ID, SLOT_ID, SLOT_TITLE, MEAL_TIME, TITLE, QUANTITY, UNIT, UNIT_RAW,
                            ENERGY, CARBOHYDRATE, PROTEIN, FAT, FIBER, SOURCE
                            FROM tabcalorie_entries WHERE ENTRY_DATE='" . DBSafe($date) . "'
                            ORDER BY SLOT_ID, ID");

@@ -4,7 +4,7 @@ aliases: [TabCalorie, Главная страница, TabCalorie README]
 tags: [tabcalorie, majordomo, docs]
 lang: ru
 plugin: tabcalorie
-version: 1.3.1
+version: 1.4.0
 ---
 
 # TabCalorie
@@ -12,7 +12,7 @@ version: 1.3.1
 > [!NOTE]
 > Плагин MajorDoMo для локального контроля потребления углеводов по данным
 > приложения «Таблица калорийности» (ТК / Dine4Fit / `tablycjakalorijnosti.com.ua`).
-> Язык документации по умолчанию — украинский. Версия 1.3.1, 2026-11-20.
+> Язык документации по умолчанию — украинский. Версия 1.4.0, 2026-11-20.
 
 [[README|Українська]] · [[README.en|English]] · [[README.ru|Русский]]
 
