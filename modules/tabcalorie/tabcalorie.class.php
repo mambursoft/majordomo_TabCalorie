@@ -13,7 +13,7 @@
  * @package tabcalorie
  * @author  mambursoft
  * @license MIT
- * @version 1.3.0
+ * @version 1.3.1
  */
 
 require_once(dirname(__FILE__) . '/lib/Api.php');
@@ -23,7 +23,7 @@ require_once(dirname(__FILE__) . '/lib/Chart.php');
 
 class tabcalorie extends module
 {
-    const VERSION = '1.3.0';
+    const VERSION = '1.3.1';
 
     function tabcalorie()
     {
@@ -661,8 +661,19 @@ EOD;
         }
         $main = $slots[1]['carbs'] + $slots[3]['carbs'] + $slots[5]['carbs'];
         $snacks = $slots[2]['carbs'] + $slots[4]['carbs'] + $slots[6]['carbs'];
+        $dishes = array();
+        foreach ($rows as $r) {
+            $dishes[(int)$r['SLOT_ID']][] = array(
+                'TITLE' => $r['TITLE'],
+                'QUANTITY' => $r['QUANTITY'],
+                'UNIT' => $r['UNIT'],
+                'ENERGY' => $r['ENERGY'],
+                'CARBOHYDRATE' => $r['CARBOHYDRATE'],
+            );
+        }
         return array(
             'date' => $date, 'partial' => true, 'slot_count' => 2,
+            'dishes' => $dishes,
             'slots' => $slots,
             'groups' => array('main' => $main, 'snacks' => $snacks, 'day' => $main + $snacks),
             'total_carbs' => $main + $snacks,
@@ -741,6 +752,35 @@ EOD;
             '</th><td>' . $ov['groups']['snacks'] . ' г</td><td></td><td></td><td></td></tr><tr><th>' .
             $this->e($this->tr('TC_TOTAL')) . '</th><td>' . $ov['groups']['day'] . ' г</td><td>' .
             $ov['total_kcal'] . '</td><td>' . $ov['protein'] . '</td><td>' . $ov['fat'] . '</td></tr></tfoot></table></div></div>';
+        // Full dish list for the last filled day, grouped by meal.
+        $dishes = isset($ov['dishes']) ? $ov['dishes'] : TabCalorieStore::dayDishes($ov['date']);
+        $html .= '<div class="tc-panel"><div class="tc-panel-head">' .
+            $this->e($this->tr('TC_DISHES_BY_MEAL')) . ' — ' . $this->e($ov['date']) .
+            '</div><div class="tc-table-wrap"><table class="tc-table"><thead><tr><th>' .
+            $this->e($this->tr('TC_FOOD')) . '</th><th>' . $this->e($this->tr('TC_QTY')) .
+            '</th><th>' . $this->e($this->tr('TC_KCAL')) . '</th><th>' .
+            $this->e($this->tr('TC_CARBS')) . '</th></tr></thead><tbody>';
+        $hasDishes = false;
+        for ($i = 1; $i <= 6; $i++) {
+            if (empty($dishes[$i])) {
+                continue;
+            }
+            $hasDishes = true;
+            $html .= '<tr class="tc-group"><th colspan="4">' .
+                $this->e($this->tr(TabCalorieStore::slotKey($i))) . '</th></tr>';
+            foreach ($dishes[$i] as $d) {
+                $qty = TabCalorieStore::num($d['QUANTITY']);
+                $amount = $qty > 0 ? TabCalorieStore::round1($qty) . ' ' . $this->e($d['UNIT']) : $this->e($d['UNIT']);
+                $html .= '<tr><td>' . $this->e($d['TITLE']) . '</td><td>' . $amount . '</td><td>' .
+                    TabCalorieStore::round1($d['ENERGY']) . '</td><td>' .
+                    TabCalorieStore::round1($d['CARBOHYDRATE']) . ' г</td></tr>';
+            }
+        }
+        if (!$hasDishes) {
+            $html .= '<tr><td colspan="4" class="tc-muted">' . $this->e($this->tr('TC_NO_DATA')) . '</td></tr>';
+        }
+        $html .= '</tbody></table></div></div>';
+
         if ($ov['notes'] !== '') {
             $html .= '<div class="tc-panel"><div class="tc-panel-head">' . $this->e($this->tr('TC_NOTES')) .
                 '</div><div class="tc-panel-body">' . nl2br($this->e($ov['notes'])) . '</div></div>';
@@ -1674,6 +1714,7 @@ EOD;
 .tc-bar-over span{background:#e2583e}.tc-bar-val{display:block;font-size:10px;color:#7a869a;margin-top:2px;white-space:nowrap}
 .tc-meals td{min-width:120px;vertical-align:top}.tc-meals td:first-child{min-width:130px}
 .tc-search{margin-bottom:12px}.tc-results{margin-top:6px;max-height:110px;overflow:auto}
+.tc-group th{background:#f0f4f8;color:#2fa36b;font-size:12px;text-transform:uppercase;padding:6px 10px}
 .tc-panel{background:#fff;border:1px solid #e6e9ee;border-radius:8px;margin-top:12px;overflow:hidden}
 .tc-panel-head{padding:10px 14px;font-weight:600;background:#f7f9fb;border-bottom:1px solid #e6e9ee}.tc-panel-body{padding:14px}
 .tc-table-wrap{overflow-x:auto}.tc-table{width:100%;border-collapse:collapse;font-size:13px}.tc-table th,.tc-table td{padding:8px 10px;text-align:left;border-bottom:1px solid #eef1f5;white-space:nowrap}

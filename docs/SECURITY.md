@@ -4,14 +4,14 @@ aliases: [TabCalorie, SECURITY, Модель безпеки]
 tags: [tabcalorie, majordomo, security]
 lang: uk
 plugin: tabcalorie
-version: 1.3.0
+version: 1.3.1
 ---
 
 # Безпека TabCalorie
 
 [[SECURITY|Українська]] · [[SECURITY.en|English]]
 
-Версія 1.3.0 · 2026-11-20
+Версія 1.3.1 · 2026-11-20
 
 TabCalorie обробляє конфіденційні дані: облікові дані «Таблиці калорійності»,
 секрет Nightscout і **персональні дані користувача**. Цей документ описує модель

@@ -79,6 +79,12 @@ check('snacks group = 0', abs($ov['groups']['snacks']) < 0.01);
 check('total = 100', abs($ov['total_carbs'] - 100) < 0.01);
 check('notes from slot', strpos($ov['notes'], 'кориц') !== false, $ov['notes']);
 
+echo "== Dishes by meal ==\n";
+$byMeal = TabCalorieStore::dayDishes('2026-11-19');
+check('grouped by slot', isset($byMeal[1], $byMeal[3]) && count($byMeal) === 2);
+check('dish title kept', $byMeal[1][0]['TITLE'] === 'Вівсянка');
+check('slot 2 empty', empty($byMeal[2]));
+
 echo "== Exporter ==\n";
 list($from, $to) = TabCalorieExporter::periodRange('week', '2026-11-19');
 check('week range', $from === '2026-11-13' && $to === '2026-11-19', "$from..$to");

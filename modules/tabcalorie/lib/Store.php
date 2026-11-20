@@ -662,6 +662,20 @@ class TabCalorieStore
                           ORDER BY ID");
     }
 
+    /** All dishes of a day, grouped by meal slot (slot_id => rows). */
+    public static function dayDishes($date)
+    {
+        $rows = SQLSelect("SELECT ID, SLOT_ID, SLOT_TITLE, TITLE, QUANTITY, UNIT, UNIT_RAW,
+                           ENERGY, CARBOHYDRATE, PROTEIN, FAT, FIBER, SOURCE
+                           FROM tabcalorie_entries WHERE ENTRY_DATE='" . DBSafe($date) . "'
+                           ORDER BY SLOT_ID, ID");
+        $out = array();
+        foreach ($rows as $r) {
+            $out[(int)$r['SLOT_ID']][] = $r;
+        }
+        return $out;
+    }
+
     /**
      * Full raw payload for the last day that has at least one record:
      * original TK diary JSON plus normalized entries and activities.

@@ -60,6 +60,14 @@ function SQLSelect($sql)
     if (strpos($sql, 'FROM tabcalorie_activities') !== false) {
         return array();
     }
+    if (strpos($sql, 'SELECT ID, SLOT_ID, SLOT_TITLE, TITLE, QUANTITY') !== false) {
+        return array(
+            array('ID' => 1, 'SLOT_ID' => 1, 'TITLE' => 'Вівсянка', 'QUANTITY' => 150,
+                'UNIT' => 'г', 'UNIT_RAW' => '150 x 1 g', 'ENERGY' => 300, 'CARBOHYDRATE' => 40),
+            array('ID' => 2, 'SLOT_ID' => 3, 'TITLE' => 'Рис', 'QUANTITY' => 200,
+                'UNIT' => 'г', 'UNIT_RAW' => '200 x 1 g', 'ENERGY' => 260, 'CARBOHYDRATE' => 60),
+        );
+    }
     if (strpos($sql, 'FROM tabcalorie_days') !== false) {
         return array($GLOBALS['tc_test_day']);
     }

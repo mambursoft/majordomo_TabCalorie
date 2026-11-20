@@ -4,13 +4,13 @@ aliases: [TabCalorie, perplexity_research, Дослідження API]
 tags: [tabcalorie, majordomo, api]
 lang: uk
 plugin: tabcalorie
-version: 1.3.0
+version: 1.3.1
 ---
 
 # Автоматичне зведення даних харчування з «Таблиці калорійності», ін'єкцій та глікемії для звітності
 
 > [!NOTE]
-> Дослідницький документ. Версія 1.3.0 · 2026-11-20. Джерело технічних фактів для
+> Дослідницький документ. Версія 1.3.1 · 2026-11-20. Джерело технічних фактів для
 > [[API|API та формати даних]].
 
 Цей посібник містить готову схему зведення даних харчування та перевірений код **Google Apps Script**, який автоматично забирає спожиті вуглеводи з Android-застосунку **«Таблиця калорійності»** ([Dine4Fit у Google Play](https://play.google.com/store/apps/details?id=cz.psc.android.kaloricketabulky&hl=uk)) через його офіційний хмарний портал [tablycjakalorijnosti.com.ua](https://www.tablycjakalorijnosti.com.ua/) безпосередньо у вашу Google Таблицю для контролю споживання та формування звітності.

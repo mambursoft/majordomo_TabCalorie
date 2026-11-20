@@ -4,14 +4,14 @@ aliases: [TabCalorie, INSTALL, Встановлення]
 tags: [tabcalorie, majordomo, settings]
 lang: uk
 plugin: tabcalorie
-version: 1.3.0
+version: 1.3.1
 ---
 
 # Встановлення TabCalorie
 
 [[INSTALL|Українська]] · [[INSTALL.en|English]] · [[INSTALL.ru|Русский]]
 
-Версія 1.3.0 · 2026-11-20
+Версія 1.3.1 · 2026-11-20
 
 Ця інструкція описує встановлення плагіна MajorDoMo `tabcalorie` у двох
 способах: через Market та вручну з архіву `.tgz`.

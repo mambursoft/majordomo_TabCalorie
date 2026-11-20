@@ -4,14 +4,14 @@ aliases: [TabCalorie, USAGE.en, Overview]
 tags: [tabcalorie, majordomo, docs]
 lang: en
 plugin: tabcalorie
-version: 1.3.0
+version: 1.3.1
 ---
 
 # Using TabCalorie
 
 [[USAGE|Українська]] · [[USAGE.en|English]] · [[USAGE.ru|Русский]]
 
-Version 1.3.0 · 2026-11-20
+Version 1.3.1 · 2026-11-20
 
 This document describes the plugin interface after
 [[INSTALL.en|installation]] and configuration.
