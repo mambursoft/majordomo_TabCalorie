@@ -4,7 +4,7 @@ aliases: [TabCalorie, PROMPT, Робочий документ]
 tags: [tabcalorie, majordomo, docs]
 lang: uk
 plugin: tabcalorie
-version: 1.2.0
+version: 1.2.1
 ---
 
 # Промпт створення публічного плагіна MajorDoMo «TabCalorie»

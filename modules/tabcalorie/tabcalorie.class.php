@@ -23,12 +23,14 @@ require_once(dirname(__FILE__) . '/lib/Chart.php');
 
 class tabcalorie extends module
 {
-    const VERSION = '1.2.0';
+    const VERSION = '1.2.1';
 
     function tabcalorie()
     {
         $this->name            = 'tabcalorie';
-        $this->title           = '<#LANG_TC_TITLE#>';
+        // Plain string: the admin menu is rendered BEFORE module language files
+        // are loaded, so a <#LANG_TC_TITLE#> placeholder would stay unresolved.
+        $this->title           = 'TabCalorie';
         $this->module_category = '<#LANG_SECTION_APPLICATIONS#>';
         $this->checkInstalled();
     }
@@ -267,12 +269,17 @@ EOD;
     {
         parent::checkInstalled();
 
-        $rec = SQLSelectOne("SELECT ID, CATEGORY FROM project_modules WHERE NAME='tabcalorie'");
+        $rec = SQLSelectOne("SELECT ID, CATEGORY, TITLE FROM project_modules WHERE NAME='tabcalorie'");
         if (!$rec['ID']) {
             SQLInsert('project_modules', array(
                 'NAME' => 'tabcalorie', 'TITLE' => $this->title,
                 'CATEGORY' => $this->module_category, 'DATA' => '',
             ));
+        } elseif (strpos((string)$rec['TITLE'], '<#LANG_') !== false || trim((string)$rec['TITLE']) === '') {
+            // Repair installations created before v1.2.1: the menu is rendered
+            // before module dictionaries load, so the placeholder was empty.
+            $rec['TITLE'] = $this->title;
+            SQLUpdate('project_modules', $rec);
         }
 
         if (defined('ROOT')) {

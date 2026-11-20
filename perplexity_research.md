@@ -4,7 +4,7 @@ aliases: [TabCalorie, perplexity_research, Дослідження API]
 tags: [tabcalorie, majordomo, api]
 lang: uk
 plugin: tabcalorie
-version: 1.2.0
+version: 1.2.1
 ---
 
 # Автоматичне зведення даних харчування з «Таблиці калорійності», ін'єкцій та глікемії для звітності

@@ -4,7 +4,7 @@ aliases: [TabCalorie, INSTALL.en, Installation]
 tags: [tabcalorie, majordomo, settings]
 lang: en
 plugin: tabcalorie
-version: 1.2.0
+version: 1.2.1
 ---
 
 # Installing TabCalorie

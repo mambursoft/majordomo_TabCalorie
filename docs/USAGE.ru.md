@@ -4,7 +4,7 @@ aliases: [TabCalorie, USAGE.ru, Обзор возможностей]
 tags: [tabcalorie, majordomo, docs]
 lang: ru
 plugin: tabcalorie
-version: 1.2.0
+version: 1.2.1
 ---
 
 # Использование TabCalorie
