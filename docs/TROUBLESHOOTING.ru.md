@@ -4,7 +4,7 @@ aliases: [TabCalorie, TROUBLESHOOTING.ru, Диагностика]
 tags: [tabcalorie, majordomo, docs]
 lang: ru
 plugin: tabcalorie
-version: 1.2.1
+version: 1.2.2
 ---
 
 # Устранение неисправностей TabCalorie

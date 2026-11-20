@@ -4,7 +4,7 @@ aliases: [TabCalorie, INSTALL.ru, Установка]
 tags: [tabcalorie, majordomo, settings]
 lang: ru
 plugin: tabcalorie
-version: 1.2.1
+version: 1.2.2
 ---
 
 # Установка TabCalorie

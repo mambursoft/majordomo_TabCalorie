@@ -23,7 +23,7 @@ require_once(dirname(__FILE__) . '/lib/Chart.php');
 
 class tabcalorie extends module
 {
-    const VERSION = '1.2.1';
+    const VERSION = '1.2.2';
 
     function tabcalorie()
     {
@@ -495,6 +495,9 @@ EOD;
             }
         }
 
+        // Diagnostics may have cleared a stale error - reload before rendering
+        // so the status badge matches the object on this very page load.
+        $cfg = $this->configAll();
         $out['CONTENT'] = $this->render($tab, $cfg, $message, $error, true);
     }
 
@@ -1044,6 +1047,7 @@ EOD;
 
     function saveSettings($cfg)
     {
+        $oldCfg = $cfg;
         $textKeys = array('BASE_URL', 'EMAIL', 'HOOK_PROPERTY', 'NS_URL');
         foreach ($textKeys as $k) {
             if (isset($_POST[$k])) {
@@ -1102,8 +1106,19 @@ EOD;
             $cfg['WRITEBACK_ENABLED'] = 0;
             $cfg['NS_ENABLED'] = 0; // never send demo data anywhere
         }
+        // Connection details changed: a previous "login failed" state is no
+        // longer meaningful. Reset it instead of waiting for the next sync.
+        foreach (array('BASE_URL', 'PROVIDER', 'EMAIL', 'PASSWORD') as $k) {
+            if ((string)$oldCfg[$k] !== (string)$cfg[$k]) {
+                $cfg['LAST_ERROR'] = '';
+                $cfg['CIRCUIT_UNTIL'] = 0;
+                TabCalorieStore::log('settings', 'ok', 0, 0, 'connection settings changed, error reset');
+                break;
+            }
+        }
         $this->config = $cfg;
         $this->saveConfig();
+        TabCalorieStore::refreshStatusObject($cfg);
         if ($cfg['SYNC_ENABLED']) {
             setGlobal('cycle_tabcalorieControl', 'restart');
         }
@@ -1201,8 +1216,26 @@ EOD;
 
     function diagnose()
     {
-        $api = new TabCalorieApi($this->configAll());
-        return $api->diagnose();
+        $cfg = $this->configAll();
+        $api = new TabCalorieApi($cfg);
+        $steps = $api->diagnose();
+        $allOk = true;
+        foreach ($steps as $s) {
+            if (empty($s['ok'])) {
+                $allOk = false;
+            }
+        }
+        // A successful check proves the previous error is stale. Clear it so
+        // the object Status and the badge agree with the diagnostics result.
+        if ($allOk && ($cfg['LAST_ERROR'] !== '' || (int)$cfg['CIRCUIT_UNTIL'] > 0)) {
+            $cfg['LAST_ERROR'] = '';
+            $cfg['CIRCUIT_UNTIL'] = 0;
+            $this->config = $cfg;
+            $this->saveConfig();
+            TabCalorieStore::log('diagnostics', 'ok', 0, 0, 'stale integration error cleared');
+            TabCalorieStore::refreshStatusObject($cfg);
+        }
+        return $steps;
     }
 
     function testNightscout()

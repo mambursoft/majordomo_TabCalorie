@@ -4,7 +4,7 @@ aliases: [TabCalorie, API.en, TK API]
 tags: [tabcalorie, majordomo, api]
 lang: en
 plugin: tabcalorie
-version: 1.2.1
+version: 1.2.2
 ---
 
 # TabCalorie API and data formats

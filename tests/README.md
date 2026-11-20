@@ -4,7 +4,7 @@ aliases: [TabCalorie, tests/README, Тести]
 tags: [tabcalorie, majordomo, testing]
 lang: uk
 plugin: tabcalorie
-version: 1.2.1
+version: 1.2.2
 ---
 
 # Тести TabCalorie

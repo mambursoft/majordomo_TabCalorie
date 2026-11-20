@@ -4,7 +4,7 @@ aliases: [TabCalorie, Головна сторінка, TabCalorie README]
 tags: [tabcalorie, majordomo, docs]
 lang: uk
 plugin: tabcalorie
-version: 1.2.1
+version: 1.2.2
 ---
 
 # TabCalorie
