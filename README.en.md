@@ -1,25 +1,35 @@
+---
+title: "TabCalorie — Local nutrition tracking"
+aliases: [TabCalorie, Home, Readme]
+tags: [tabcalorie, majordomo, docs]
+lang: en
+plugin: tabcalorie
+version: 1.1.0
+---
+
 # TabCalorie
 
+> [!NOTE]
 > A MajorDoMo plugin for local carbohydrate tracking based on data from the
 > "Calorie Table" app (TK / Dine4Fit / `tablycjakalorijnosti.com.ua`).
-> Default documentation language: Ukrainian. Version 1.0.0, 2026-11-20.
+> Default documentation language: Ukrainian. Version 1.1.0, 2026-11-20.
 
-[Українська](README.md) · [English](README.en.md) · [Русский](README.ru.md)
+[[README|Українська]] · [[README.en|English]] · [[README.ru|Русский]]
 
 ---
 
 ## ⚠️ Important medical disclaimer
 
-**TabCalorie is NOT a medical device and provides no medical advice.**
-The plugin does not diagnose, prescribe treatment, calculate or administer
-insulin, and does not replace the "Calorie Table" diary or your endocrinologist's
-advice. All data is for **informational carbohydrate tracking and reporting only**.
-Treatment decisions, insulin doses and nutrition are decided by a **doctor** —
-or, in their absence, by parents/guardians under their doctor's responsibility.
-
-The target user is a child born in 2014 with type 1 diabetes (T1D). Personal data
-is stored **locally** in your MajorDoMo installation. Never publish real data in
-public repositories, screenshots or un-anonymised reports.
+> [!WARNING]
+> **TabCalorie is NOT a medical device and provides no medical advice.**
+> The plugin does not diagnose, prescribe treatment, calculate or administer
+> insulin, and does not replace the "Calorie Table" diary or your endocrinologist's
+> advice. All data is for **informational carbohydrate tracking and reporting only**.
+> Treatment decisions, insulin doses and nutrition are decided by a **doctor**.
+>
+> The user's personal data and nutrition data are stored **locally** in your
+> MajorDoMo installation. Never publish real data in public repositories,
+> screenshots or un-anonymised reports.
 
 ---
 
@@ -39,7 +49,7 @@ local MajorDoMo database and shows a convenient carbohydrate breakdown across
 The mobile app only syncs to its own cloud portal; standard integrations
 (Health Connect, Google Fit, Garmin, Samsung Health) **do not export** consumed
 carbs. The portal's internal JSON API returns the full day structure, which
-TabCalorie uses for import (see [perplexity_research.md](perplexity_research.md)).
+TabCalorie uses for import (see [[perplexity_research|API research]]).
 
 ### Features
 
@@ -47,6 +57,8 @@ TabCalorie uses for import (see [perplexity_research.md](perplexity_research.md)
 - Idempotency: unique key `(date, slot, food guid, unit)` — repeated runs create no duplicates.
 - Overview of the **last filled day** with empty slots, not data pulled from another day.
 - Local food reference (per 100 g) with local GI and notes (the TK API has neither).
+- Daily targets (calories, protein, fat, carbs) and progress bars for each of the
+  6 meals on the **Overview** tab; exceeding a target is highlighted in color.
 - MajorDoMo object `TabCalorie` (class `STabCalorie`) with ready-made aggregates.
 - CSV export (UTF-8 BOM, `;` delimiter) for day / week / month / year.
 - Connection diagnostics without changing data.
@@ -104,8 +116,9 @@ The module creates its tables, registers the
 `cms/modules_installed/tabcalorie.installed` flag, a row in `plugins`, the
 `TabCalorie` object and the icon.
 
+> [!NOTE]
 > Build the package with `python3 build_package.py` — output `dist/tabcalorie.tgz`.
-> Details: [docs/INSTALL.en.md](docs/INSTALL.en.md).
+> Details: [[INSTALL.en|Installation guide]].
 
 ---
 
@@ -130,7 +143,11 @@ written to logs or the repository.
 | `RETENTION_DAYS` | days | `1825` (5 years) | Data retention; expired rows are purged daily. |
 | `LANGUAGE` | `uk` \| `en` \| `ru` | `uk` | Interface language. |
 | `GRAMS_PER_XE` | number | `10` | Grams of carbs per bread unit (10 or 12 — per doctor). |
-| `CARBS_TARGET` | grams | `120` | Daily carbohydrate target. |
+| `CALORIES_TARGET` | kcal | `1800` | Daily calorie target, kcal. |
+| `PROTEIN_TARGET` | grams | `90` | Daily protein target, g. |
+| `FAT_TARGET` | grams | `60` | Daily fat target, g. |
+| `CARBS_TARGET` | grams | `120` | Daily carbohydrate target, g. |
+| `MEAL_NORM_SHARE` | percent (10–50) | `25` | Share of the daily target for a main meal (breakfast/lunch/dinner); the rest of the target is split equally between the snacks (slots 2, 4, 6). |
 | `CSV_DELIMITER` | char | `;` | CSV delimiter (Excel UA friendly). |
 | `WRITEBACK_ENABLED` | 0/1 | `0` | Unofficial write-back to TK — **disabled**. |
 | `WRITEBACK_CONFIRM` | 0/1 | `1` | Require explicit confirmation for each write. |
@@ -140,6 +157,13 @@ written to logs or the repository.
 | `LAST_SYNC` | timestamp | — | Time of last successful sync (service field). |
 | `LAST_ERROR` | string | — | Last error (no secrets). |
 | `CIRCUIT_UNTIL` | timestamp | — | Circuit-breaker pause after repeated errors. |
+
+> [!TIP]
+> The target for a main meal (breakfast, lunch, dinner) is
+> `daily target × MEAL_NORM_SHARE / 100`. The remaining `(100 − MEAL_NORM_SHARE)%`
+> of the daily target is split equally between the three snacks (slots 2, 4, 6).
+> For example, with `MEAL_NORM_SHARE=25` main meals get 25% of the target each
+> and snacks get ~8.33% each.
 
 After saving, click **"Check connection"** — diagnostics without changing data:
 DNS/TLS/HTTP, login, cookies, endpoint availability, JSON parsing.
@@ -152,12 +176,17 @@ The public plugin page (`run()` + `templates/tabcalorie/tabcalorie.html`) has si
 
 | Tab | What it does |
 |---|---|
-| **Overview** | Last filled day: 6 slots, meal groups, daily totals, bread units, % of target, remaining allowance. Default tab when configured. |
+| **Overview** | Last filled day: 6 slots, meal groups, daily totals, bread units, % of target, remaining allowance, target progress bars. Default tab when configured. |
 | **History** | Daily totals for a period, comparison with previous days, trend and deviation from target. |
 | **Food reference** | Local food list with per-100 g values; GI and notes are edited here (not in the API). |
-| **Export** | CSV for day / week / month / year, UTF-8 BOM, `;` delimiter, `DD.MM.YYYY` dates; optional anonymisation for the doctor. |
+| **Export** | CSV for day / week / month / year, UTF-8 BOM, `;` delimiter, `DD.MM.YYYY` dates; optional anonymisation. |
 | **Diagnostics** | Last sync state, sync log, explanation of common errors, "Check connection" result. |
 | **Instructions** | Short uk/en/ru instructions (including "Forgot password?"). |
+
+> [!IMPORTANT]
+> When the targets are filled in (non-zero), the **Overview** tab shows a progress
+> bar for carbs, calories, protein and fat for each of the 6 meals relative to the
+> calculated per-meal target; exceeding a target is highlighted in color.
 
 On **Overview**, the **"Create typical chart"** button generates a consumption
 chart using the standard MajorDoMo mechanism (Highcharts/pChart).
@@ -208,7 +237,7 @@ Class `STabCalorie`. Read properties via `gg('TabCalorie.Property')`.
   exponential backoff, single-flight lock, timeouts, circuit breaker
   (`CIRCUIT_UNTIL`), proper `User-Agent`, no parallel requests.
 
-Details: [docs/API.en.md](docs/API.en.md).
+Details: [[API.en|API and data formats]].
 
 ### Nightscout (optional)
 
@@ -226,7 +255,7 @@ php -S 127.0.0.1:8765 tests/mock_server.php   # local TK mock
 php tests/test_api.php                        # in a second terminal
 ```
 
-See [tests/README.md](tests/README.md). For a first run without an account,
+See [[tests/README|Tests]]. For a first run without an account,
 enable `DEMO_MODE`: the plugin uses sample data, makes no network requests and
 cannot write to TK or Nightscout.
 
@@ -239,10 +268,10 @@ cannot write to TK or Nightscout.
 - All SQL uses `DBSafe`/placeholders; HTML is escaped in templates; admin actions
   are CSRF-protected and check `control_access` rights.
 - HTTPS only, TLS validation, timeouts, response size limits.
-- Access control for export (child's data) and anonymisation option.
+- Access control for export (user's personal data) and anonymisation option.
 - First run in demo/fixtures mode without a real account.
 
-Details: [docs/SECURITY.en.md](docs/SECURITY.en.md).
+Details: [[SECURITY.en|Security]].
 
 ---
 
@@ -283,12 +312,13 @@ No. All data stays local in your MajorDoMo DB. The TK cloud is read-only for the
 ## Links
 
 - Repository: https://github.com/mambursoft/majordomo_TabCalorie
-- API research and sources: [perplexity_research.md](perplexity_research.md)
+- API research and sources: [[perplexity_research|API research]]
 - TK portal manual: https://www.tablycjakalorijnosti.com.ua/manual
-- Docs: [docs/INSTALL.en.md](docs/INSTALL.en.md) ·
-  [docs/USAGE.en.md](docs/USAGE.en.md) · [docs/TROUBLESHOOTING.en.md](docs/TROUBLESHOOTING.en.md) ·
-  [docs/SECURITY.en.md](docs/SECURITY.en.md) · [docs/API.en.md](docs/API.en.md)
+- Docs: [[INSTALL.en|Installation]] ·
+  [[USAGE.en|Usage]] · [[TROUBLESHOOTING.en|Troubleshooting]] ·
+  [[SECURITY.en|Security]] · [[API.en|API and data formats]]
+- Map of content: [[HOME|HOME (MOC)]]
 
 ## License
 
-MIT. See [LICENSE](LICENSE) and [NOTICE.md](NOTICE.md).
+MIT. See [[LICENSE]] and [[NOTICE|NOTICE]].

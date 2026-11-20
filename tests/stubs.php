@@ -9,8 +9,8 @@ $GLOBALS['tc_test_day'] = array(
     'SLOT_COUNT' => 2, 'FOODSTUFF_COUNT' => 2, 'NOTES' => 'додати корицю',
 );
 $GLOBALS['tc_test_groups'] = array(
-    array('SLOT_ID' => 1, 'C' => 40, 'E' => 300, 'N' => 1),
-    array('SLOT_ID' => 3, 'C' => 60, 'E' => 260, 'N' => 1),
+    array('SLOT_ID' => 1, 'C' => 40, 'E' => 300, 'P' => 12.5, 'F' => 4.2, 'FI' => 6.1, 'S' => 8, 'N' => 1),
+    array('SLOT_ID' => 3, 'C' => 60, 'E' => 260, 'P' => 5, 'F' => 0.9, 'FI' => 1.2, 'S' => 0.2, 'N' => 1),
 );
 
 function DBSafe($v) { return addslashes((string)$v); }

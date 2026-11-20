@@ -23,7 +23,7 @@ require_once(dirname(__FILE__) . '/lib/Chart.php');
 
 class tabcalorie extends module
 {
-    const VERSION = '1.0.0';
+    const VERSION = '1.1.0';
 
     function tabcalorie()
     {
@@ -74,6 +74,10 @@ class tabcalorie extends module
             'LANGUAGE'          => 'uk',
             'GRAMS_PER_XE'      => 10,
             'CARBS_TARGET'      => 120,
+            'CALORIES_TARGET'   => 1800,
+            'PROTEIN_TARGET'    => 90,
+            'FAT_TARGET'        => 60,
+            'MEAL_NORM_SHARE'   => 25,
             'CSV_DELIMITER'     => ';',
             'WRITEBACK_ENABLED' => 0,
             'WRITEBACK_CONFIRM' => 1,
@@ -209,6 +213,8 @@ EOD;
         for ($i = 1; $i <= 6; $i++) {
             $props[] = 'Slot' . $i . 'Carbs';
             $props[] = 'Slot' . $i . 'Kcal';
+            $props[] = 'Slot' . $i . 'Protein';
+            $props[] = 'Slot' . $i . 'Fat';
         }
         foreach ($props as $p) {
             $history = (strpos($p, 'Carbs') !== false || strpos($p, 'Total') === 0) ? 365 : 0;
@@ -490,42 +496,91 @@ EOD;
             $this->e($last) . '</span>' . ($err !== '' ? '<div class="tc-small">' . $this->e(mb_substr($err, 0, 120)) . '</div>' : '');
     }
 
+    /** Small progress bar. Returns empty string when the norm is not configured. */
+    function bar($value, $norm, $unit = '', $showText = true)
+    {
+        if ((float)$norm <= 0) {
+            return '';
+        }
+        $value = (float)$value;
+        $pct = $value / (float)$norm * 100;
+        $over = $pct > 100;
+        $w = max(0, min(100, round($pct)));
+        $html = '<div class="tc-bar' . ($over ? ' tc-bar-over' : '') . '"><span style="width:' . $w . '%"></span></div>';
+        if ($showText) {
+            $html .= '<span class="tc-bar-val">' . $value . ' / ' . $norm . ' ' . $this->e($unit) .
+                ($over ? ' ⚠' : '') . '</span>';
+        }
+        return $html;
+    }
+
     function tabOverview($cfg)
     {
         $ov = TabCalorieStore::overview();
         $xe = TabCalorieStore::round1($ov['total_carbs'] / max(1, (float)$cfg['GRAMS_PER_XE']));
-        $target = (float)$cfg['CARBS_TARGET'];
-        $pct = $target > 0 ? min(100, round($ov['total_carbs'] / $target * 100)) : 0;
+        $share = (int)$cfg['MEAL_NORM_SHARE'];
+        $targets = array(
+            'carbs' => (float)$cfg['CARBS_TARGET'],
+            'kcal' => (float)$cfg['CALORIES_TARGET'],
+            'protein' => (float)$cfg['PROTEIN_TARGET'],
+            'fat' => (float)$cfg['FAT_TARGET'],
+        );
+        $hasNorms = false;
+        foreach ($targets as $t) {
+            if ($t > 0) {
+                $hasNorms = true;
+            }
+        }
+
         $html = '<div class="tc-row">';
         $html .= '<div class="tc-card"><div class="tc-card-title">' . $this->e($this->tr('TC_LAST_FILLED_DAY')) . '</div>' .
             '<div class="tc-big">' . $this->e($ov['date']) . '</div>' .
             '<div class="tc-small">' . ($ov['partial'] ? $this->e($this->tr('TC_PARTIAL_DAY')) : $this->e($this->tr('TC_FULL_DAY'))) .
             ' · ' . (int)$ov['slot_count'] . '/6</div></div>';
-        $html .= '<div class="tc-card"><div class="tc-card-title">' . $this->e($this->tr('TC_TOTAL_CARBS')) . '</div>' .
-            '<div class="tc-big">' . $this->e($ov['total_carbs']) . ' <small>г</small></div>' .
-            '<div class="tc-progress"><span style="width:' . $pct . '%"></span></div>' .
-            '<div class="tc-small">' . $xe . ' ' . $this->e($this->tr('TC_XE')) . ' / ' . $target . ' ' . $this->e($this->tr('TC_XE')) . '</div></div>';
-        $html .= '<div class="tc-card"><div class="tc-card-title">' . $this->e($this->tr('TC_TOTAL_KCAL')) . '</div>' .
-            '<div class="tc-big">' . $this->e($ov['total_kcal']) . '</div>' .
-            '<div class="tc-small">' . $this->e($this->tr('TC_PROTEIN')) . ' ' . $ov['protein'] .
-            ' · ' . $this->e($this->tr('TC_FAT')) . ' ' . $ov['fat'] .
-            ' · ' . $this->e($this->tr('TC_FIBER')) . ' ' . $ov['fiber'] . '</div></div>';
+
+        $cards = array(
+            array('TC_TOTAL_CARBS', $ov['total_carbs'], $targets['carbs'], 'г',
+                $xe . ' ' . $this->e($this->tr('TC_XE'))),
+            array('TC_TOTAL_KCAL', $ov['total_kcal'], $targets['kcal'], $this->tr('TC_KCAL'), ''),
+            array('TC_PROTEIN', $ov['protein'], $targets['protein'], 'г', ''),
+            array('TC_FAT', $ov['fat'], $targets['fat'], 'г', ''),
+        );
+        foreach ($cards as $c) {
+            $html .= '<div class="tc-card"><div class="tc-card-title">' . $this->e($this->tr($c[0])) . '</div>' .
+                '<div class="tc-big">' . $c[1] . ' <small>' . $this->e($c[3]) . '</small></div>' .
+                $this->bar($c[1], $c[2], $c[3]) .
+                ($c[4] !== '' ? '<div class="tc-small">' . $c[4] . '</div>' : '') . '</div>';
+        }
         $html .= '</div>';
 
-        $html .= '<div class="tc-panel"><div class="tc-panel-head">' . $this->e($this->tr('TC_MEALS')) . '</div>' .
-            '<div class="tc-table-wrap"><table class="tc-table"><thead><tr><th>' .
+        if (!$hasNorms) {
+            $html .= '<div class="tc-alert tc-err">' . $this->e($this->tr('TC_NORMS_HINT')) . '</div>';
+        }
+
+        $html .= '<div class="tc-panel"><div class="tc-panel-head">' . $this->e($this->tr('TC_MEALS')) .
+            ($hasNorms ? ' <small>(' . $this->e($this->tr('TC_PER_MEAL_NORMS')) . ')</small>' : '') .
+            '</div><div class="tc-table-wrap"><table class="tc-table tc-meals"><thead><tr><th>' .
             $this->e($this->tr('TC_MEAL')) . '</th><th>' . $this->e($this->tr('TC_CARBS')) .
-            '</th><th>' . $this->e($this->tr('TC_KCAL')) . '</th></tr></thead><tbody>';
+            '</th><th>' . $this->e($this->tr('TC_KCAL')) . '</th><th>' . $this->e($this->tr('TC_PROTEIN')) .
+            '</th><th>' . $this->e($this->tr('TC_FAT')) . '</th></tr></thead><tbody>';
         for ($i = 1; $i <= 6; $i++) {
             $s = $ov['slots'][$i];
+            $cell = function ($value, $key, $unit) use ($targets, $share, $i) {
+                return $value . ' ' . $unit . $this->bar($value,
+                    TabCalorieStore::mealNorm($targets[$key], $i, $share), $unit);
+            };
             $html .= '<tr class="' . ($s['present'] ? '' : 'tc-muted') . '"><td>' .
-                $this->e($this->tr($s['title_key'])) . '</td><td>' . $s['carbs'] . ' г</td><td>' . $s['kcal'] . '</td></tr>';
+                $this->e($this->tr($s['title_key'])) . '</td><td>' .
+                $cell($s['carbs'], 'carbs', 'г') . '</td><td>' .
+                $cell($s['kcal'], 'kcal', $this->tr('TC_KCAL')) . '</td><td>' .
+                $cell($s['protein'], 'protein', 'г') . '</td><td>' .
+                $cell($s['fat'], 'fat', 'г') . '</td></tr>';
         }
         $html .= '</tbody><tfoot><tr><th>' . $this->e($this->tr('TC_MAIN_MEALS')) . '</th><td>' .
-            $ov['groups']['main'] . ' г</td><td></td></tr><tr><th>' . $this->e($this->tr('TC_SNACKS')) .
-            '</th><td>' . $ov['groups']['snacks'] . ' г</td><td></td></tr><tr><th>' .
+            $ov['groups']['main'] . ' г</td><td></td><td></td><td></td></tr><tr><th>' . $this->e($this->tr('TC_SNACKS')) .
+            '</th><td>' . $ov['groups']['snacks'] . ' г</td><td></td><td></td><td></td></tr><tr><th>' .
             $this->e($this->tr('TC_TOTAL')) . '</th><td>' . $ov['groups']['day'] . ' г</td><td>' .
-            $ov['total_kcal'] . '</td></tr></tfoot></table></div></div>';
+            $ov['total_kcal'] . '</td><td>' . $ov['protein'] . '</td><td>' . $ov['fat'] . '</td></tr></tfoot></table></div></div>';
         if ($ov['notes'] !== '') {
             $html .= '<div class="tc-panel"><div class="tc-panel-head">' . $this->e($this->tr('TC_NOTES')) .
                 '</div><div class="tc-panel-body">' . nl2br($this->e($ov['notes'])) . '</div></div>';
@@ -690,6 +745,10 @@ EOD;
             array('number', 'RETENTION_DAYS', $this->tr('TC_RETENTION')),
             array('number', 'GRAMS_PER_XE', $this->tr('TC_G_PER_XE')),
             array('number', 'CARBS_TARGET', $this->tr('TC_TARGET')),
+            array('number', 'CALORIES_TARGET', $this->tr('TC_CALORIES_TARGET')),
+            array('number', 'PROTEIN_TARGET', $this->tr('TC_PROTEIN_TARGET')),
+            array('number', 'FAT_TARGET', $this->tr('TC_FAT_TARGET')),
+            array('number', 'MEAL_NORM_SHARE', $this->tr('TC_MEAL_NORM_SHARE')),
             array('text', 'HOOK_PROPERTY', $this->tr('TC_HOOK')),
             array('number', 'HOOK_DEBOUNCE_SEC', $this->tr('TC_HOOK_DEBOUNCE')),
             array('select', 'LANGUAGE', $this->tr('TC_LANGUAGE'), array('uk' => 'Українська', 'en' => 'English', 'ru' => 'Русский')),
@@ -788,7 +847,9 @@ EOD;
         }
         $numKeys = array('SYNC_INTERVAL_MIN' => array(15, 10080, 60), 'SYNC_DAYS' => array(1, 90, 2),
             'RETENTION_DAYS' => array(30, 3650, 1825), 'GRAMS_PER_XE' => array(5, 20, 10),
-            'CARBS_TARGET' => array(10, 1000, 120), 'HOOK_DEBOUNCE_SEC' => array(0, 86400, 60));
+            'CARBS_TARGET' => array(0, 1000, 120), 'CALORIES_TARGET' => array(0, 6000, 1800),
+            'PROTEIN_TARGET' => array(0, 400, 90), 'FAT_TARGET' => array(0, 300, 60),
+            'MEAL_NORM_SHARE' => array(10, 50, 25), 'HOOK_DEBOUNCE_SEC' => array(0, 86400, 60));
         foreach ($numKeys as $k => $rule) {
             if (isset($_POST[$k])) {
                 $v = (int)$_POST[$k];
@@ -1092,6 +1153,9 @@ EOD;
 .tc-row{display:flex;flex-wrap:wrap;gap:12px}.tc-card{flex:1 1 240px;background:#fff;border:1px solid #e6e9ee;border-radius:8px;padding:14px;min-width:220px}
 .tc-card-title{font-size:12px;color:#7a869a;text-transform:uppercase;letter-spacing:.04em}.tc-big{font-size:30px;font-weight:700;margin:6px 0}.tc-big small{font-size:14px;font-weight:400;color:#7a869a}
 .tc-small{font-size:11px;color:#7a869a}.tc-progress{height:6px;background:#eef1f5;border-radius:4px;overflow:hidden}.tc-progress span{display:block;height:100%;background:#2fa36b}
+.tc-bar{height:5px;min-width:70px;background:#eef1f5;border-radius:4px;overflow:hidden;margin-top:4px}.tc-bar span{display:block;height:100%;background:#2fa36b;transition:width .25s}
+.tc-bar-over span{background:#e2583e}.tc-bar-val{display:block;font-size:10px;color:#7a869a;margin-top:2px;white-space:nowrap}
+.tc-meals td{min-width:120px;vertical-align:top}.tc-meals td:first-child{min-width:130px}
 .tc-panel{background:#fff;border:1px solid #e6e9ee;border-radius:8px;margin-top:12px;overflow:hidden}
 .tc-panel-head{padding:10px 14px;font-weight:600;background:#f7f9fb;border-bottom:1px solid #e6e9ee}.tc-panel-body{padding:14px}
 .tc-table-wrap{overflow-x:auto}.tc-table{width:100%;border-collapse:collapse;font-size:13px}.tc-table th,.tc-table td{padding:8px 10px;text-align:left;border-bottom:1px solid #eef1f5;white-space:nowrap}

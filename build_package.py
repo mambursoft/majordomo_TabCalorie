@@ -54,6 +54,7 @@ TREES: Tuple[str, ...] = (
 # Файли/шаблони, які додаються окремо (arcname == відносний шлях).
 FILES: Tuple[str, ...] = (
     "modinfo.json",
+    "HOME.md",
     "README*",
     "LICENSE",
     "NOTICE.md",

@@ -1,14 +1,24 @@
+---
+title: "Installing TabCalorie"
+aliases: [TabCalorie, INSTALL.en, Installation]
+tags: [tabcalorie, majordomo, settings]
+lang: en
+plugin: tabcalorie
+version: 1.1.0
+---
+
 # Installing TabCalorie
 
-[Українська](INSTALL.md) · [English](INSTALL.en.md) · [Русский](INSTALL.ru.md)
+[[INSTALL|Українська]] · [[INSTALL.en|English]] · [[INSTALL.ru|Русский]]
 
-Version 1.0.0 · 2026-11-20
+Version 1.1.0 · 2026-11-20
 
 This guide describes how to install the MajorDoMo plugin `tabcalorie` in two
 ways: via Market and manually from a `.tgz` archive.
 
-> ⚠️ **Reminder:** TabCalorie is NOT a medical device and provides no medical
-> advice. See [README.en.md](../README.en.md).
+> [!WARNING]
+> **Reminder:** TabCalorie is NOT a medical device and provides no medical
+> advice. See [[README.en|TabCalorie]].
 
 ---
 
@@ -34,6 +44,7 @@ ways: via Market and manually from a `.tgz` archive.
    phone app.
 3. For the Czech portal use `https://www.kaloricketabulky.cz`.
 
+> [!WARNING]
 > Never store a real password in the repository or text files — it is entered
 > only in the protected module admin page and masked.
 
@@ -73,6 +84,7 @@ tar -tzf /path/to/tabcalorie.tgz   # preview before extracting
 tar -xzf /path/to/tabcalorie.tgz
 ```
 
+> [!NOTE]
 > `/var/www/html` is a typical path; use the real root of your installation.
 > The archive has no parent `majordomo_TabCalorie` folder — files go straight
 > into `modules/`, `templates/`, etc.
@@ -89,6 +101,7 @@ modinfo.json                 Market metadata
 README.md / README.en.md / README.ru.md
 LICENSE / NOTICE.md / CHANGELOG.md
 docs/                        documentation
+HOME.md                      map of content (MOC)
 ```
 
 ### 3.4. Activate the module
@@ -125,6 +138,7 @@ Example cron entry (substitute the real path):
 */15 * * * * php /var/www/html/scripts/cycle_tabcalorie.php >/dev/null 2>&1
 ```
 
+> [!TIP]
 > The cycle uses a single-flight lock: parallel runs do not create concurrent
 > requests to TK.
 
@@ -150,7 +164,11 @@ Open the module admin page and fill in the configuration keys (stored in
 | `RETENTION_DAYS` | data retention | `1825` (5 years) |
 | `LANGUAGE` | `uk` / `en` / `ru` | `uk` |
 | `GRAMS_PER_XE` | grams per bread unit | `10` |
-| `CARBS_TARGET` | daily carb target, g | `120` |
+| `CALORIES_TARGET` | daily calorie target, kcal | `1800` |
+| `PROTEIN_TARGET` | daily protein target, g | `90` |
+| `FAT_TARGET` | daily fat target, g | `60` |
+| `CARBS_TARGET` | daily carbohydrate target, g | `120` |
+| `MEAL_NORM_SHARE` | share of a main meal (10–50, %) | `25` |
 | `CSV_DELIMITER` | CSV delimiter | `;` |
 | `WRITEBACK_ENABLED` | write-back to TK | `0` (disabled) |
 | `WRITEBACK_CONFIRM` | write confirmation | `1` |
@@ -158,7 +176,15 @@ Open the module admin page and fill in the configuration keys (stored in
 | `NS_URL` | Nightscout base | — |
 | `NS_API_SECRET` | Nightscout secret (masked) | — |
 
-Full descriptions are in [README.en.md](../README.en.md#configuration).
+> [!TIP]
+> `MEAL_NORM_SHARE` sets the share of the daily target for a main meal
+> (breakfast/lunch/dinner — slots 1, 3, 5). The rest of the target is split
+> equally between the snacks (slots 2, 4, 6). Range: 10–50%, default 25%.
+> When the targets are filled in (non-zero), the **Overview** tab shows a progress
+> bar for carbs, calories, protein and fat for each of the 6 meals relative to
+> the calculated per-meal target; exceeding a target is highlighted in color.
+
+Full descriptions are in [[README.en#Configuration|README.en]].
 
 ### 4.1. Check connection
 
@@ -171,15 +197,16 @@ Click **"Check connection"** in the admin page. Diagnostics perform:
 - JSON parsing and 6-slot verification.
 
 Diagnostics **do not change data**. If something fails — see
-[TROUBLESHOOTING.en.md](TROUBLESHOOTING.en.md).
+[[TROUBLESHOOTING.en|Troubleshooting]].
 
 ### 4.2. First run
 
-1. Enable `SYNC_ENABLED=1` (if not already).
-2. Run the cycle manually or wait for the schedule.
-3. Open the public plugin page → **Overview** tab.
-4. Make sure the last filled day and correct totals are shown.
-5. Check **Diagnostics** → last successful sync and log.
+- [ ] Enable `SYNC_ENABLED=1` (if not already).
+- [ ] Run the cycle manually or wait for the schedule.
+- [ ] Open the public plugin page → **Overview** tab.
+- [ ] Make sure the last filled day and correct totals are shown.
+- [ ] Check **Diagnostics** → last successful sync and log.
+- [ ] Make sure the target progress bars on **Overview** are displayed correctly.
 
 ---
 
@@ -224,3 +251,5 @@ Yes, 7.3 is the minimum supported version; tested up to 8.2.
 
 **Where do I get a release?**
 https://github.com/mambursoft/majordomo_TabCalorie/releases
+
+See also [[HOME|HOME (MOC)]].

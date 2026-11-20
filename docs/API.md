@@ -1,14 +1,24 @@
+---
+title: "TabCalorie: API та формати даних"
+aliases: [TabCalorie, API, API ТК]
+tags: [tabcalorie, majordomo, api]
+lang: uk
+plugin: tabcalorie
+version: 1.1.0
+---
+
 # API та формати даних TabCalorie
 
-[Українська](API.md) · [English](API.en.md)
+[[API|Українська]] · [[API.en|English]]
 
-Версія 1.0.0 · 2026-11-20
+Версія 1.1.0 · 2026-11-20
 
 Цей документ фіксує технічні факти про API «Таблиці калорійності» (ТК),
 Nightscout і формати даних плагіна. Він призначений для розробників і для
-діагностики. Джерела — [perplexity_research.md](../perplexity_research.md).
+діагностики. Джерела — [[perplexity_research|Дослідження API]].
 
-> ⚠️ Внутрішній API ТК є **неофіційним**. Він може змінитися без попередження.
+> [!WARNING]
+> Внутрішній API ТК є **неофіційним**. Він може змінитися без попередження.
 > Запис назад у ТК не є підтримуваною функцією.
 
 ---
@@ -149,7 +159,8 @@ $cookie = join('; ', $resp['setCookiePairs']);
 
 ## 5. Запис назад у ТК (неофіційний)
 
-> ⚠️ Не є підтримуваною функцією. Використовуйте тільки з явним погодженням.
+> [!WARNING]
+> Не є підтримуваною функцією. Використовуйте тільки з явним погодженням.
 
 ### `POST /user/foodstuff/add?format=json`
 
@@ -256,6 +267,11 @@ $cookie = join('; ', $resp['setCookiePairs']);
 
 Читання: `gg('TabCalorie.TotalCarbs')`.
 
+> [!NOTE]
+> Добові норми `CALORIES_TARGET`, `PROTEIN_TARGET`, `FAT_TARGET`, `CARBS_TARGET`
+> і `MEAL_NORM_SHARE` використовуються для розрахунку норми кожного прийому їжі
+> та прогресбарів у вкладці **Огляд** (див. [[USAGE#2.5. Норми споживання та прогресбари|Використання]]).
+
 ---
 
 ## 9. Мови
@@ -268,8 +284,9 @@ $cookie = join('; ', $resp['setCookiePairs']);
 ## 10. Посилання
 
 - Репозиторій: https://github.com/mambursoft/majordomo_TabCalorie
-- Дослідження: [perplexity_research.md](../perplexity_research.md)
+- Дослідження: [[perplexity_research|Дослідження API]]
 - Мануал ТК: https://www.tablycjakalorijnosti.com.ua/manual
 - Nightscout API: https://github.com/nightscout/documentation
 - Неофіційні SDK: https://github.com/tomasvotava/kaloricketabulky ·
   https://github.com/francbohuslav/kaloricke-tabulky-api
+- Карта контенту: [[HOME|HOME (MOC)]]

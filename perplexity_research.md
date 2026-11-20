@@ -1,32 +1,45 @@
-# Автоматичне зведення вуглеводів із «Таблиці калорійності», ін'єкцій Новорапіду та глікемії для лікаря
+---
+title: "Дослідження API: зведення даних харчування з «Таблиці калорійності»"
+aliases: [TabCalorie, perplexity_research, Дослідження API]
+tags: [tabcalorie, majordomo, api]
+lang: uk
+plugin: tabcalorie
+version: 1.1.0
+---
 
-Цей посібник містить готову схему зведення даних для дитини з цукровим діабетом 1 типу (ЦД1) та перевірений код **Google Apps Script**, який автоматично забирає спожиті вуглеводи з Android-застосунку **«Таблиця калорійності»** ([Dine4Fit у Google Play](https://play.google.com/store/apps/details?id=cz.psc.android.kaloricketabulky&hl=uk)) через його офіційний хмарний портал [tablycjakalorijnosti.com.ua](https://www.tablycjakalorijnosti.com.ua/) безпосередньо у вашу Google Таблицю з ін'єкціями Новорапіду.
+# Автоматичне зведення даних харчування з «Таблиці калорійності», ін'єкцій та глікемії для звітності
+
+> [!NOTE]
+> Дослідницький документ. Версія 1.1.0 · 2026-11-20. Джерело технічних фактів для
+> [[API|API та формати даних]].
+
+Цей посібник містить готову схему зведення даних харчування та перевірений код **Google Apps Script**, який автоматично забирає спожиті вуглеводи з Android-застосунку **«Таблиця калорійності»** ([Dine4Fit у Google Play](https://play.google.com/store/apps/details?id=cz.psc.android.kaloricketabulky&hl=uk)) через його офіційний хмарний портал [tablycjakalorijnosti.com.ua](https://www.tablycjakalorijnosti.com.ua/) безпосередньо у вашу Google Таблицю для контролю споживання та формування звітності.
 
 ---
 
 ## Чому стандартні інтеграції на Android не передають вуглеводи
 
-1. **Одностороння робота Health Connect та Google Fit:** У налаштуваннях Android-версії «Таблиці калорійності» підключення до Health Connect, Google Fit, Garmin та Samsung Health передає лише фізичну активність і спалені калорії **у** щоденник харчування, але не експортує спожиті вуглеводи (КБЖВ) у зовнішні діабетичні застосунки ([Довідкова служба Dine4Fit про Health Connect](https://d4f.freshdesk.com/en/support/solutions/articles/22000292402-what-is-health-connect-), [Мануал tablycjakalorijnosti.com.ua](https://www.tablycjakalorijnosti.com.ua/manual)).
+1. **Одностороння робота Health Connect та Google Fit:** У налаштуваннях Android-версії «Таблиці калорійності» підключення до Health Connect, Google Fit, Garmin та Samsung Health передає лише фізичну активність і спалені калорії **у** щоденник харчування, але не експортує спожиті вуглеводи (КБЖВ) у зовнішні застосунки для контролю харчування ([Довідкова служба Dine4Fit про Health Connect](https://d4f.freshdesk.com/en/support/solutions/articles/22000292402-what-is-health-connect-), [Мануал tablycjakalorijnosti.com.ua](https://www.tablycjakalorijnosti.com.ua/manual)).
 2. **Обмеження ручного експорту з сайту:** Вебверсія дозволяє вивантажити раціон у PDF або XLS ([Мануал Kalorické Tabulky](https://www.kaloricketabulky.cz/manual)), проте формує поденні дієтологічні файли без прив'язки до болюсів інсуліну та профілю цукрів ([Опис експорту kaloricketabulky-diary-export](https://github.com/rickmtdev/kaloricketabulky-diary-export)).
-3. **Рішення через внутрішній JSON API вебпорталу:** Оскільки мобільний додаток миттєво синхронізує всі записи з вебсайтом `www.tablycjakalorijnosti.com.ua`, внутрішній веб-ендпоінт `/user/diary/ДД.ММ.РРРР/get?format=json` віддає повну структуру дня у форматі JSON — включно з грамами вуглеводів, цукрів, клітковини, білків, жирів і переліком страв по кожному прийому їжі ([Документація неофіційного SDK kaloricketabulky](https://github.com/tomasvotava/kaloricketabulky), [Клієнт kaloricke-tabulky-api](https://github.com/francbohuslav/kaloricke-tabulky-api)).
+3. **Рішення через внутрішній JSON API вебпорталу:** Оскільки мобільний додаток миттєво синхронізує всі записи з вебсайтом `www.tablycjakalorijnosti.com.ua`, внутрішній веб-ендпоїнт `/user/diary/ДД.ММ.РРРР/get?format=json` віддає повну структуру дня у форматі JSON — включно з грамами вуглеводів, цукрів, клітковини, білків, жирів і переліком страв по кожному прийому їжі ([Документація неофіційного SDK kaloricketabulky](https://github.com/tomasvotava/kaloricketabulky), [Клієнт kaloricke-tabulky-api](https://github.com/francbohuslav/kaloricke-tabulky-api)).
 
 ---
 
 ## Підготовка облікового запису (один раз, 2 хвилини)
 
 1. Перевірте, під якою електронною адресою ви авторизовані у застосунку «Таблиця калорійності» на смартфоні (меню **Мій профіль**).
-2. Якщо ви реєструвалися через кнопку **«Увійти через Google»** (або Apple/Facebook) і не маєте окремого пароля, відкрийте сторінку входу [tablycjakalorijnosti.com.ua/login](https://www.tablycjakalorijnosti.com.ua/login), введіть вашу електронну пошту та натисніть **«Забули пароль?»**. На пошту надійде пароль для прямого входу — при цьому робота додатка на телефоні не перерветься ([Інструкція підтримки Dine4Fit щодо пароля для входу на сайт](https://d4f.freshdesk.com/uk/support/solutions/articles/22000292848-%D1%8F%D0%BA-%D1%83%D0%B2%D1%96%D0%B9%D1%82%D0%B8-%D0%BD%D0%B0-%D1%81%D0%B0%D0%B9%D1%82-%D1%8F%D0%BA%D1%89%D0%BE-%D0%B2%D0%B8%D0%BA%D0%BE%D1%80%D0%B8%D1%81%D1%82%D0%BE%D0%B2%D1%83%D1%8E-%D0%B2%D1%85%D1%96%D0%B4-%D1%87%D0%B5%D1%80%D0%B5%D0%B7-%D0%BF%D1%80%D0%B8%D1%85%D0%BE%D0%B2%D0%B0%D0%BD%D1%83-%D0%B5%D0%BB%D0%B5%D0%BA%D1%82%D1%80%D0%BE%D0%BD%D0%BD%D1%83-%D0%BF%D0%BE%D1%88%D1%82%D1%83-apple-)).
+2. Якщо ви реєструвалися через кнопку **«Увійти через Google»** (або Apple/Facebook) і не маєте окремого пароля, відкрийте сторінку входу [tablycjakalorijnosti.com.ua/login](https://www.tablycjakalorijnosti.com.ua/login), введіть вашу електронну пошту та натисніть **«Забули пароль?»**. На пошту надійде пароль для прямого входу — при цьому робота додатка на телефоні не перерветься ([Інструкція підтримки Dine4Fit щодо пароля для входу на сайт](https://d4f.freshdesk.com/uk/support/solutions/articles/22000292848-%D1%8F%D0%BA-%D1%83%D0%B2%D1%96%D0%B9%D1%82%D0%B8-%D0%BD%D0%B0-%D1%81%D0%B0%D0%B9%D1%82-%D1%8F%D0%BA%D1%89%D0%BE-%D0%B2%D0%B8-%D0%BA%D0%BE%D1%80%D0%B8%D1%81%D1%82%D0%BE%D0%B2%D1%83%D1%8E%D1%82%D1%8C-%D0%B2%D1%85%D1%96%D0%B4-%D1%87%D0%B5%D1%80%D0%B5%D0%B7-%D0%BF%D1%80%D0%B8%D1%85%D0%BE%D0%B2%D0%B0%D0%BD%D1%83-%D0%B5%D0%BB%D0%B5%D0%BA%D1%82%D1%80%D0%BE%D0%BD%D0%BD%D1%83-%D0%BF%D0%BE%D1%88%D1%82%D1%83-apple-)).
 
 ---
 
 ## Готовий скрипт для вашої Google Таблиці (Google Apps Script)
 
-Відкрийте вашу Google Таблицю з ін'єкціями Новорапіду, у верхньому меню оберіть **Розширення → Apps Script**, видаліть порожній шаблон і вставте наведений нижче код, після чого натисніть **Зберегти**.
+Відкрийте вашу Google Таблицю для зведення даних, у верхньому меню оберіть **Розширення → Apps Script**, видаліть порожній шаблон і вставте наведений нижче код, після чого натисніть **Зберегти**.
 
 ```javascript
 /**
  * Автоматичне завантаження спожитих вуглеводів із tablycjakalorijnosti.com.ua
- * у Google Таблицю для зведення з ін'єкціями Новорапіду (ЦД1).
+ * у Google Таблицю для зведення даних і формування звітності.
  */
 
 const KT_BASE_URL = 'https://www.tablycjakalorijnosti.com.ua';
@@ -258,7 +271,7 @@ function syncCarbsForDays(daysCount) {
     'Білки (г)',
     'Жири (г)',
     'Енергія (ккал)',
-    'Деталізація страв для лікаря'
+    'Деталізація страв'
   ];
 
   if (!sheet) {
@@ -308,13 +321,13 @@ function syncCarbsForDays(daysCount) {
 
 ---
 
-## Опціональне автоматичне вивантаження у Nightscout (єдиний графік для лікаря)
+## Опціональне автоматичне вивантаження у Nightscout (єдиний графік для звітності)
 
-Якщо ви використовуєте або плануєте підняти власний екземпляр **Nightscout** (куди сенсор через **xDrip+** або **Juggluco** вже передає криву глюкози), той самий скрипт у Google Таблиці може автоматично надсилати як спожиті вуглеводи з «Таблиці калорійності», так і ін'єкції Новорапіду в ендпоінт `/api/v1/treatments.json` ([Технічна документація Nightscout API](https://github.com/nightscout/documentation/blob/master/Nightscout/EN/Technical%20info/api.rst)):
+Якщо ви використовуєте або плануєте підняти власний екземпляр **Nightscout** (куди сенсор через **xDrip+** або **Juggluco** вже передає криву глюкози), той самий скрипт у Google Таблиці може автоматично надсилати як спожиті вуглеводи з «Таблиці калорійності», так і дані інсуліну в ендпоінт `/api/v1/treatments.json` ([Технічна документація Nightscout API](https://github.com/nightscout/documentation/blob/master/Nightscout/EN/Technical%20info/api.rst)):
 
 ```javascript
 /**
- * Приклад функції відправки комбінованого запису (вуглеводи + Новорапід) у Nightscout.
+ * Приклад функції відправки комбінованого запису (вуглеводи + інсулін) у Nightscout.
  * apiSecretSha1 — SHA-1 хеш вашого API_SECRET у нижньому регістрі.
  */
 function pushMealBolusToNightscout(nsBaseUrl, apiSecretSha1, isoTimestamp, carbsGrams, insulinUnits, mealNotes) {
@@ -338,21 +351,21 @@ function pushMealBolusToNightscout(nsBaseUrl, apiSecretSha1, isoTimestamp, carbs
 }
 ```
 
-Після цього через інструмент [Nightscout Reporter](https://nightscout.github.io/nightscout/reports/) або штатне меню **Reports → Day to day / Percentile Chart** генерується стандартний клінічний PDF, де на кожній добі суміщені лінія глюкози, грами вуглеводів, одиниці Новорапіду та базальний інсулін ([Документація звітів Nightscout для клініцистів](https://nightscout.github.io/clinicians/reports/)).
+Після цього через інструмент [Nightscout Reporter](https://nightscout.github.io/nightscout/reports/) або штатне меню **Reports → Day to day / Percentile Chart** генерується стандартний клінічний PDF, де на кожній добі суміщені лінія глюкози, грами вуглеводів, одиниці інсуліну та базальний інсулін ([Документація звітів Nightscout для клініцистів](https://nightscout.github.io/clinicians/reports/)).
 
 ---
 
-## Рекомендована структура зведеного аркуша «Звіт для лікаря» у Google Таблиці
+## Рекомендована структура зведеного аркуша «Звіт» у Google Таблиці
 
-Щоб ендокринолог міг за 2–3 хвилини оцінити адекватність доз і скоригувати вуглеводні коефіцієнти (УК / ICR), створіть у вашій таблиці окремий аркуш **«Звіт_Лікарю_14_днів»** із такою структурою стовпців (для друку в альбомній орієнтації А4 через **Файл → Завантажити → Документ PDF**):
+Щоб фахівець міг за 2–3 хвилини оцінити адекватність доз і скоригувати вуглеводні коефіцієнти (УК / ICR), створіть у вашій таблиці окремий аркуш **«Звіт_14_днів»** із такою структурою стовпців (для друку в альбомній орієнтації А4 через **Файл → Завантажити → Документ PDF**):
 
 | Група показників | Стовпці у зведеному рядку за 1 день | Як заповнюється |
 |---|---|---|
 | **Ідентифікація та базал** | `Дата`, `Базальний інсулін (од. та час)` | З вашого аркуша інсуліну |
-| **Сніданок** | `Цукор до`, `Вугл. (г)`, `Новорапід (од.)`, `Факт. УК (г/од.)`, `Цукор через 2 год` | Вуглеводи з `Вуглеводи_Авто` (`XLOOKUP`), уколи з аркуша Новорапіду, `УК = Вугл / Інсулін` |
-| **Обід** | `Цукор до`, `Вугл. (г)`, `Новорапід (од.)`, `Факт. УК (г/од.)`, `Цукор через 2 год` | Аналогічно за слотом «Обід» |
-| **Вечеря** | `Цукор до`, `Вугл. (г)`, `Новорапід (од.)`, `Факт. УК (г/од.)`, `Цукор через 2 год` | Аналогічно за слотом «Вечеря» |
-| **Перекуси та корекції (ДПС)** | `Перекуси (г вугл.)`, `Підколки Новорапіду / ДПС (од.)`, `Гіпо-купірування (г швидких вугл.)` | Сума слотів Перекус 1 + Підвечірок + Друга вечеря та окремі ДПС |
+| **Сніданок** | `Цукор до`, `Вугл. (г)`, `Інсулін (од.)`, `Факт. УК (г/од.)`, `Цукор через 2 год` | Вуглеводи з `Вуглеводи_Авто` (`XLOOKUP`), записи з аркуша інсуліну, `УК = Вугл / Інсулін` |
+| **Обід** | `Цукор до`, `Вугл. (г)`, `Інсулін (од.)`, `Факт. УК (г/од.)`, `Цукор через 2 год` | Аналогічно за слотом «Обід» |
+| **Вечеря** | `Цукор до`, `Вугл. (г)`, `Інсулін (од.)`, `Факт. УК (г/од.)`, `Цукор через 2 год` | Аналогічно за слотом «Вечеря» |
+| **Перекуси та корекції (ДПС)** | `Перекуси (г вугл.)`, `Додаткові дози інсуліну / ДПС (од.)`, `Гіпо-купірування (г швидких вугл.)` | Сума слотів Перекус 1 + Підвечірок + Друга вечеря та окремі ДПС |
 | **Добові підсумки** | `Усього вуглеводів (г / ХО)`, `Болюс за день (од.)`, `TDD — добовий інсулін (од.)`, `% Базал / % Болюс`, `Середній цукор / % TIR` | Автоматичні формули `SUM` та середні показники за 14 днів унизу таблиці |
 
 ### Приклад формули підтягування вуглеводів на зведений аркуш
@@ -373,3 +386,7 @@ function pushMealBolusToNightscout(nsBaseUrl, apiSecretSha1, isoTimestamp, carbs
 - Довідковий центр розробника Dine4Fit щодо синхронізації: [Helpcentrum Dine4Fit — Підключені додатки та Health Connect](https://d4f.freshdesk.com/uk/support/solutions/articles/22000292744-%D1%8F%D0%BA%D1%96-%D0%B4%D0%BE%D0%B4%D0%B0%D1%82%D0%BA%D0%B8-%D0%BC%D0%BE%D0%B6%D0%BD%D0%B0-%D0%BF%D1%96%D0%B4%D0%BA%D0%BB%D1%8E%D1%87%D0%B8%D1%82%D0%B8-%D0%B4%D0%BE-%D1%82%D0%B0%D0%B1%D0%BB%D0%B8%D1%86%D1%96-%D0%BA%D0%B0%D0%BB%D0%BE%D1%80%D1%96%D0%B9%D0%BD%D0%BE%D1%81%D1%82%D1%96-)
 - Опис внутрішніх JSON-моделей щоденника Dine4Fit / Kalorické Tabulky: [kaloricketabulky Python SDK (GitHub)](https://github.com/tomasvotava/kaloricketabulky) та [kaloricke-tabulky-api (GitHub)](https://github.com/francbohuslav/kaloricke-tabulky-api)
 - Стандарти звітів глікемії та інсулінотерапії для ендокринологів: [LibreView Clinical Reports](https://www.freestyleprovider.abbott/us-en/libreview.html), [xDrip+ Endocrinologist Reports](https://navid200.github.io/xDrip/docs/Report.html), [Nightscout Clinician Reports](https://nightscout.github.io/clinicians/reports/), [Juggluco Export & Webserver](https://www.juggluco.nl/Jugglucohelp/helpexport.html)
+
+---
+
+Див. також [[API|API та формати даних]], [[README|TabCalorie]] і [[HOME|HOME (MOC)]].

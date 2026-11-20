@@ -1,28 +1,39 @@
+---
+title: "Устранение неисправностей TabCalorie"
+aliases: [TabCalorie, TROUBLESHOOTING.ru, Диагностика]
+tags: [tabcalorie, majordomo, docs]
+lang: ru
+plugin: tabcalorie
+version: 1.1.0
+---
+
 # Устранение неисправностей TabCalorie
 
-[Українська](TROUBLESHOOTING.md) · [English](TROUBLESHOOTING.en.md) · [Русский](TROUBLESHOOTING.ru.md)
+[[TROUBLESHOOTING|Українська]] · [[TROUBLESHOOTING.en|English]] · [[TROUBLESHOOTING.ru|Русский]]
 
-Версия 1.0.0 · 2026-11-20
+Версия 1.1.0 · 2026-11-20
 
 Этот документ помогает диагностировать типовые проблемы. Начните со вкладки
 **Диагностика** и кнопки **«Проверить подключение»** — она проверяет
 DNS/TLS/HTTP, логин, cookie, эндпоинт и парсинг JSON, не меняя данные.
 
-> ⚠️ Никогда не отправляйте в публичные issue реальные логи с паролями, токенами
-> или персональными данными ребёнка. Секреты в логах маскируются как `***` —
+> [!WARNING]
+> Никогда не отправляйте в публичные issue реальные логи с паролями, токенами
+> или персональными данными пользователя. Секреты в логах маскируются как `***` —
 > проверьте это перед публикацией.
 
 ---
 
 ## Быстрый чеклист
 
-1. Модуль активен? Админка → **Модули** → `tabcalorie`.
-2. Заполнены `EMAIL` и `PASSWORD`?
-3. `PROVIDER` соответствует порталу (`ua` / `cz` / `custom`)?
-4. `SYNC_ENABLED=1`?
-5. Есть ли у сервера исходящий HTTPS-доступ к порталу ТК?
-6. Включены ли расширения PHP `curl`, `json`, `mbstring`?
-7. Что говорят `LAST_ERROR`, `CIRCUIT_UNTIL` и `tabcalorie_sync_log`?
+- [ ] Модуль активен? Админка → **Модули** → `tabcalorie`.
+- [ ] Заполнены `EMAIL` и `PASSWORD`?
+- [ ] `PROVIDER` соответствует порталу (`ua` / `cz` / `custom`)?
+- [ ] `SYNC_ENABLED=1`?
+- [ ] Есть ли у сервера исходящий HTTPS-доступ к порталу ТК?
+- [ ] Включены ли расширения PHP `curl`, `json`, `mbstring`?
+- [ ] Что говорят `LAST_ERROR`, `CIRCUIT_UNTIL` и `tabcalorie_sync_log`?
+- [ ] Корректно ли отображаются прогрессбары норм на вкладке **Обзор**?
 
 ---
 
@@ -189,13 +200,13 @@ API ТК возвращает ошибку в JSON **`code != 0` даже при
 Создайте issue на https://github.com/mambursoft/majordomo_TabCalorie/issues и
 добавьте:
 
-- версию плагина (1.0.0), PHP и MajorDoMo;
+- версию плагина (1.1.0), PHP и MajorDoMo;
 - `PROVIDER` (без секретов!) и BASE_URL (без учётных данных);
 - текст `LAST_ERROR` (проверьте, что там нет пароля);
 - последние строки `tabcalorie_sync_log` без персональных данных;
 - шаги воспроизведения.
 
-**Не добавляйте:** реальные email/пароли, `NS_API_SECRET`, данные ребёнка, cookie.
+**Не добавляйте:** реальные email/пароли, `NS_API_SECRET`, персональные данные пользователя, cookie.
 
-См. также [API.md](API.md), [SECURITY.md](SECURITY.md) и
-[README.ru.md](../README.ru.md#faq).
+См. также [[API|API и форматы данных]], [[SECURITY|Безопасность]],
+[[README.ru#FAQ|FAQ]] и [[HOME|HOME (MOC)]].

@@ -1,28 +1,39 @@
+---
+title: "Troubleshooting TabCalorie"
+aliases: [TabCalorie, TROUBLESHOOTING.en, Diagnostics]
+tags: [tabcalorie, majordomo, docs]
+lang: en
+plugin: tabcalorie
+version: 1.1.0
+---
+
 # Troubleshooting TabCalorie
 
-[Українська](TROUBLESHOOTING.md) · [English](TROUBLESHOOTING.en.md) · [Русский](TROUBLESHOOTING.ru.md)
+[[TROUBLESHOOTING|Українська]] · [[TROUBLESHOOTING.en|English]] · [[TROUBLESHOOTING.ru|Русский]]
 
-Version 1.0.0 · 2026-11-20
+Version 1.1.0 · 2026-11-20
 
 This document helps diagnose common issues. Start with the **Diagnostics** tab
 and the **"Check connection"** button — it checks DNS/TLS/HTTP, login, cookies,
 endpoint and JSON parsing without changing data.
 
-> ⚠️ Never send public issues with real logs containing passwords, tokens or the
-> child's personal data. Secrets are masked as `***` in logs — verify this before
+> [!WARNING]
+> Never send public issues with real logs containing passwords, tokens or the
+> user's personal data. Secrets are masked as `***` in logs — verify this before
 > publishing.
 
 ---
 
 ## Quick checklist
 
-1. Is the module active? Admin → **Modules** → `tabcalorie`.
-2. Are `EMAIL` and `PASSWORD` filled in?
-3. Does `PROVIDER` match the portal (`ua` / `cz` / `custom`)?
-4. Is `SYNC_ENABLED=1`?
-5. Does the server have outbound HTTPS access to the TK portal?
-6. Are PHP extensions `curl`, `json`, `mbstring` enabled?
-7. What do `LAST_ERROR`, `CIRCUIT_UNTIL` and `tabcalorie_sync_log` say?
+- [ ] Is the module active? Admin → **Modules** → `tabcalorie`.
+- [ ] Are `EMAIL` and `PASSWORD` filled in?
+- [ ] Does `PROVIDER` match the portal (`ua` / `cz` / `custom`)?
+- [ ] Is `SYNC_ENABLED=1`?
+- [ ] Does the server have outbound HTTPS access to the TK portal?
+- [ ] Are PHP extensions `curl`, `json`, `mbstring` enabled?
+- [ ] What do `LAST_ERROR`, `CIRCUIT_UNTIL` and `tabcalorie_sync_log` say?
+- [ ] Are the target progress bars on **Overview** displayed as expected?
 
 ---
 
@@ -184,13 +195,13 @@ not overwritten by sync.
 
 Open an issue at https://github.com/mambursoft/majordomo_TabCalorie/issues and include:
 
-- plugin version (1.0.0), PHP and MajorDoMo versions;
+- plugin version (1.1.0), PHP and MajorDoMo versions;
 - `PROVIDER` (without secrets!) and BASE_URL (without credentials);
 - `LAST_ERROR` text (verify it contains no password);
 - recent `tabcalorie_sync_log` rows without personal data;
 - steps to reproduce.
 
-**Do not include:** real email/passwords, `NS_API_SECRET`, child's data, cookies.
+**Do not include:** real email/passwords, `NS_API_SECRET`, the user's personal data, cookies.
 
-See also [API.en.md](API.en.md), [SECURITY.en.md](SECURITY.en.md) and
-[README.en.md](../README.en.md#faq).
+See also [[API.en|API and data formats]], [[SECURITY.en|Security]],
+[[README.en#FAQ|FAQ]] and [[HOME|HOME (MOC)]].

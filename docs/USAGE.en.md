@@ -1,13 +1,23 @@
+---
+title: "Using TabCalorie"
+aliases: [TabCalorie, USAGE.en, Overview]
+tags: [tabcalorie, majordomo, docs]
+lang: en
+plugin: tabcalorie
+version: 1.1.0
+---
+
 # Using TabCalorie
 
-[Українська](USAGE.md) · [English](USAGE.en.md) · [Русский](USAGE.ru.md)
+[[USAGE|Українська]] · [[USAGE.en|English]] · [[USAGE.ru|Русский]]
 
-Version 1.0.0 · 2026-11-20
+Version 1.1.0 · 2026-11-20
 
 This document describes the plugin interface after
-[installation](INSTALL.en.md) and configuration.
+[[INSTALL.en|installation]] and configuration.
 
-> ⚠️ TabCalorie is an informational tool, **not a medical device**. All insulin
+> [!WARNING]
+> TabCalorie is an informational tool, **not a medical device**. All insulin
 > and treatment decisions are made by a doctor.
 
 ---
@@ -24,7 +34,7 @@ The plugin has six tabs:
 
 | Tab | Purpose |
 |---|---|
-| **Overview** | main — current carbohydrate intake snapshot |
+| **Overview** | main — current carbohydrate intake snapshot and target progress bars |
 | **History** | dynamics and comparison over a period |
 | **Food reference** | local food list |
 | **Export** | CSV download |
@@ -51,6 +61,7 @@ never "skips" to another day for a slot.
   - **Daily total** — `GroupDayCarbs`.
 - Daily totals: carbs, calories, protein, fat, fiber, sugar, bread units, GI.
 - Target (`CARBS_TARGET`), % achieved and remaining allowance.
+- Target progress bars for each of the 6 meals (see section 2.5).
 
 ### 2.2. Bread units (XE)
 
@@ -88,6 +99,27 @@ $date  = gg('TabCalorie.LastDate');
 You can use these properties in MajorDoMo scenarios, e.g. to send a notification
 when the target is exceeded.
 
+### 2.5. Intake targets and progress bars
+
+Daily targets are set with the following configuration keys:
+
+| Key | Default | Purpose |
+|---|---|---|
+| `CALORIES_TARGET` | `1800` | Daily calorie target, kcal |
+| `PROTEIN_TARGET` | `90` | Daily protein target, g |
+| `FAT_TARGET` | `60` | Daily fat target, g |
+| `CARBS_TARGET` | `120` | Daily carbohydrate target, g |
+| `MEAL_NORM_SHARE` | `25` (range 10–50, %) | Share of the daily target for a main meal (breakfast/lunch/dinner); the rest of the target is split equally between the snacks (slots 2, 4, 6) |
+
+Main-meal target = `daily target × MEAL_NORM_SHARE / 100`; snack target =
+`daily target × (100 − MEAL_NORM_SHARE) / 300`. With `MEAL_NORM_SHARE=25`, main
+meals get 25% of the daily target each and snacks get ~8.33% each.
+
+> [!IMPORTANT]
+> When the targets are filled in (non-zero), the **Overview** tab shows a progress
+> bar for carbs, calories, protein and fat for each of the 6 meals relative to the
+> calculated per-meal target; exceeding a target is highlighted in color.
+
 ---
 
 ## 3. History tab
@@ -112,6 +144,7 @@ only at slot level). Therefore the plugin keeps its own reference in
 - Editable `GI` and `Notes` fields.
 - Local entries with `source=manual` can be added — they are **not** synced back to TK.
 
+> [!NOTE]
 > Local GI/note edits are preserved and are not overwritten by automatic sync
 > (manual-edit protection).
 
@@ -119,7 +152,7 @@ only at slot level). Therefore the plugin keeps its own reference in
 
 ## 5. Export tab
 
-Produces a CSV with the child's personal data — handle with care.
+Produces a CSV with the user's personal data — handle with care.
 
 | Parameter | Value |
 |---|---|
@@ -128,10 +161,10 @@ Produces a CSV with the child's personal data — handle with care.
 | Delimiter | `;` (`CSV_DELIMITER`, Ukrainian Excel friendly) |
 | Date format | `DD.MM.YYYY` |
 | Content | daily totals, bread units, optionally dish details |
-| Security | no secrets; optional anonymisation for the doctor |
+| Security | no secrets; optional anonymisation |
 
-Export is protected by `control_access` rights. For the doctor use the
-anonymised variant (no name, email, etc.).
+Export is protected by `control_access` rights. Use the anonymised variant
+(no name, email, etc.) when sharing the data.
 
 ---
 
@@ -149,8 +182,8 @@ anonymised variant (no name, email, etc.).
 ## 7. Instructions tab
 
 Short instructions in Ukrainian, English and Russian: how to get a direct-login
-password, how to configure the module, how to read the doctor's report, where
-the data is stored.
+password, how to configure the module, how to read the report, where the data is
+stored.
 
 ---
 
@@ -196,8 +229,8 @@ the data is stored.
 
 - Do not rely on the plugin as the only data source — TK remains the primary diary.
 - Check **Diagnostics** after changing your TK password.
-- Generate an anonymised CSV for the doctor.
+- Generate an anonymised CSV when sharing data.
 - If the API is temporarily down, data stays in the local DB.
 
-See also [TROUBLESHOOTING.en.md](TROUBLESHOOTING.en.md) and
-[API.en.md](API.en.md).
+See also [[TROUBLESHOOTING.en|Troubleshooting]] and
+[[API.en|API and data formats]] and [[HOME|HOME (MOC)]].

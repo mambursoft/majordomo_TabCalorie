@@ -1,11 +1,20 @@
+---
+title: "TabCalorie Security"
+aliases: [TabCalorie, SECURITY.en, Security model]
+tags: [tabcalorie, majordomo, security]
+lang: en
+plugin: tabcalorie
+version: 1.1.0
+---
+
 # TabCalorie Security
 
-[Українська](SECURITY.md) · [English](SECURITY.en.md)
+[[SECURITY|Українська]] · [[SECURITY.en|English]]
 
-Version 1.0.0 · 2026-11-20
+Version 1.1.0 · 2026-11-20
 
 TabCalorie handles sensitive data: "Calorie Table" credentials, a Nightscout
-secret and **the child's personal data**. This document describes the security
+secret and **the user's personal data**. This document describes the security
 model and requirements for the public repository.
 
 ---
@@ -13,7 +22,7 @@ model and requirements for the public repository.
 ## 1. Principles
 
 1. **No secrets in the repository.** Real logins, passwords, tokens, cookies,
-   emails and the child's data never enter git, tests, logs or screenshots.
+   emails and the user's nutrition data never enter git, tests, logs or screenshots.
 2. **Data minimisation.** Only what is needed for carbohydrate tracking and
    reporting is stored.
 3. **Locality.** All data stays in your MajorDoMo installation. The TK cloud is
@@ -41,11 +50,11 @@ Rules:
 
 ---
 
-## 3. Protecting the child's data
+## 3. Protecting the user's personal data
 
-- Personal data is stored locally in `tabcalorie_*` tables.
+- Personal data and nutrition data are stored locally in `tabcalorie_*` tables.
 - The public page and export are protected by `control_access` rights.
-- CSV export supports **anonymisation** (no name, email, etc.) for the doctor.
+- CSV export supports **anonymisation** (no name, email, etc.).
 - Never publish real data in public issues, screenshots or demo fixtures.
 - Use `demo`/fixtures mode without a real account for development and tests.
 
@@ -128,7 +137,7 @@ TabCalorie is an informational tool. The installation administrator is responsib
 
 - securing the server and the MajorDoMo account;
 - safe storage of config and backups;
-- access control to the child's data;
+- access control to the user's personal data;
 - compliance with personal-data legislation;
 - understanding that the plugin **is not a medical device**.
 
@@ -139,6 +148,6 @@ TabCalorie is an informational tool. The installation administrator is responsib
 Do not post vulnerabilities in public issues. Contact the repository owner
 privately via https://github.com/mambursoft/majordomo_TabCalorie
 (Security advisory). Include a description, reproduction steps and version
-(1.0.0), **without real secrets or data**.
+(1.1.0), **without real secrets or data**.
 
-See also [API.en.md](API.en.md) and [README.en.md](../README.en.md#security).
+See also [[API.en|API and data formats]], [[README.en#Security|README.en]] and [[HOME|HOME (MOC)]].

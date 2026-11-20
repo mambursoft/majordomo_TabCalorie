@@ -1,14 +1,24 @@
+---
+title: "TabCalorie: API and data formats"
+aliases: [TabCalorie, API.en, TK API]
+tags: [tabcalorie, majordomo, api]
+lang: en
+plugin: tabcalorie
+version: 1.1.0
+---
+
 # TabCalorie API and data formats
 
-[Українська](API.md) · [English](API.en.md)
+[[API|Українська]] · [[API.en|English]]
 
-Version 1.0.0 · 2026-11-20
+Version 1.1.0 · 2026-11-20
 
 This document records the technical facts about the "Calorie Table" (TK) API,
 Nightscout and the plugin's data formats. It is intended for developers and
-diagnostics. Sources — [perplexity_research.md](../perplexity_research.md).
+diagnostics. Sources — [[perplexity_research|API research]].
 
-> ⚠️ The internal TK API is **unofficial**. It may change without notice.
+> [!WARNING]
+> The internal TK API is **unofficial**. It may change without notice.
 > Write-back to TK is not a supported feature.
 
 ---
@@ -148,7 +158,8 @@ overwritten by sync.
 
 ## 5. Write-back to TK (unofficial)
 
-> ⚠️ Not a supported feature. Use only with explicit consent.
+> [!WARNING]
+> Not a supported feature. Use only with explicit consent.
 
 ### `POST /user/foodstuff/add?format=json`
 
@@ -255,6 +266,11 @@ Body (array of records):
 
 Read: `gg('TabCalorie.TotalCarbs')`.
 
+> [!NOTE]
+> The daily targets `CALORIES_TARGET`, `PROTEIN_TARGET`, `FAT_TARGET`,
+> `CARBS_TARGET` and `MEAL_NORM_SHARE` are used to calculate each meal's target
+> and the progress bars on the **Overview** tab (see [[USAGE.en#2.5. Intake targets and progress bars|Usage]]).
+
 ---
 
 ## 9. Languages
@@ -267,8 +283,9 @@ contain `$dictionary` and `define('LANG_'.$k, $v)`.
 ## 10. Links
 
 - Repository: https://github.com/mambursoft/majordomo_TabCalorie
-- Research: [perplexity_research.md](../perplexity_research.md)
+- Research: [[perplexity_research|API research]]
 - TK manual: https://www.tablycjakalorijnosti.com.ua/manual
 - Nightscout API: https://github.com/nightscout/documentation
 - Unofficial SDKs: https://github.com/tomasvotava/kaloricketabulky ·
   https://github.com/francbohuslav/kaloricke-tabulky-api
+- Map of content: [[HOME|HOME (MOC)]]

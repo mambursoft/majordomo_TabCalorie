@@ -209,9 +209,12 @@ class TabCalorieStore
         $slots = array();
         for ($i = 1; $i <= 6; $i++) {
             $slots[$i] = array('id' => $i, 'title_key' => self::slotKey($i), 'carbs' => 0.0,
-                'kcal' => 0.0, 'count' => 0, 'present' => false);
+                'kcal' => 0.0, 'protein' => 0.0, 'fat' => 0.0, 'fiber' => 0.0,
+                'sugar' => 0.0, 'count' => 0, 'present' => false);
         }
-        $rows = SQLSelect("SELECT SLOT_ID, SUM(CARBOHYDRATE) AS C, SUM(ENERGY) AS E, COUNT(*) AS N
+        $rows = SQLSelect("SELECT SLOT_ID, SUM(CARBOHYDRATE) AS C, SUM(ENERGY) AS E,
+                           SUM(PROTEIN) AS P, SUM(FAT) AS F, SUM(FIBER) AS FI, SUM(SUGAR) AS S,
+                           COUNT(*) AS N
                            FROM tabcalorie_entries WHERE ENTRY_DATE='" . DBSafe($date) . "'
                            GROUP BY SLOT_ID");
         foreach ($rows as $r) {
@@ -219,6 +222,10 @@ class TabCalorieStore
             if (isset($slots[$id])) {
                 $slots[$id]['carbs'] = self::round1($r['C']);
                 $slots[$id]['kcal'] = self::round1($r['E']);
+                $slots[$id]['protein'] = self::round1($r['P']);
+                $slots[$id]['fat'] = self::round1($r['F']);
+                $slots[$id]['fiber'] = self::round1($r['FI']);
+                $slots[$id]['sugar'] = self::round1($r['S']);
                 $slots[$id]['count'] = (int)$r['N'];
                 $slots[$id]['present'] = true;
             }
@@ -249,6 +256,30 @@ class TabCalorieStore
         return isset($keys[(int)$id]) ? $keys[(int)$id] : 'TC_MEAL';
     }
 
+    /**
+     * Daily norm share for one meal slot.
+     * Main meals (1,3,5) receive MEAL_NORM_SHARE percent each; the remainder is
+     * split evenly between the three snack slots (2,4,6).
+     */
+    public static function mealShare($slotId, $sharePercent)
+    {
+        $share = max(10, min(50, (float)$sharePercent)) / 100;
+        $id = (int)$slotId;
+        if (in_array($id, array(1, 3, 5), true)) {
+            return $share <= 1 / 3 ? $share : 1 / 3;
+        }
+        if (in_array($id, array(2, 4, 6), true)) {
+            return $share <= 1 / 3 ? (1 - 3 * $share) / 3 : 0;
+        }
+        return 0;
+    }
+
+    /** Norm for a given meal and metric (carbs/protein/fat/kcal). */
+    public static function mealNorm($dailyTarget, $slotId, $sharePercent)
+    {
+        return self::round1(max(0, (float)$dailyTarget) * self::mealShare($slotId, $sharePercent));
+    }
+
     /** Return the MajorDoMo object with per-meal aggregates for the last filled day. */
     public static function updateObject($overview, $gramsPerXe = 10)
     {
@@ -265,6 +296,8 @@ class TabCalorieStore
         for ($i = 1; $i <= 6; $i++) {
             $props[] = 'Slot' . $i . 'Carbs';
             $props[] = 'Slot' . $i . 'Kcal';
+            $props[] = 'Slot' . $i . 'Protein';
+            $props[] = 'Slot' . $i . 'Fat';
         }
         foreach ($props as $p) {
             $history = (strpos($p, 'Carbs') !== false || strpos($p, 'Total') === 0) ? 365 : 0;
@@ -296,6 +329,8 @@ class TabCalorieStore
         for ($i = 1; $i <= 6; $i++) {
             $values['Slot' . $i . 'Carbs'] = $overview['slots'][$i]['carbs'];
             $values['Slot' . $i . 'Kcal'] = $overview['slots'][$i]['kcal'];
+            $values['Slot' . $i . 'Protein'] = $overview['slots'][$i]['protein'];
+            $values['Slot' . $i . 'Fat'] = $overview['slots'][$i]['fat'];
         }
         foreach ($values as $name => $value) {
             $obj->setProperty($name, $value, 0, 'tabcalorie');

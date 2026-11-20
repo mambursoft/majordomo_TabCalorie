@@ -2,7 +2,7 @@
   "name": "tabcalorie",
   "title": "TabCalorie",
   "module_name": "tabcalorie",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "category": "health",
   "author": "mambursoft",
   "support": "https://github.com/mambursoft/majordomo_TabCalorie",
@@ -19,6 +19,6 @@
   "icon": "img/modules/tabcalorie.png",
   "class": "tabcalorie",
   "object": "TabCalorie",
-  "keywords": ["diabetes", "carbs", "nutrition", "tablycjakalorijnosti", "kaloricketabulky", "tsd1"],
+  "keywords": ["carbs", "nutrition", "tablycjakalorijnosti", "kaloricketabulky", "macros", "csv"],
   "homepage": "https://github.com/mambursoft/majordomo_TabCalorie"
 }

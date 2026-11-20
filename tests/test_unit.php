@@ -72,6 +72,20 @@ check('BOM', strncmp($csv, "\xEF\xBB\xBF", 3) === 0);
 check('delimiter', strpos($csv, '"A";"B"') !== false);
 check('quote escaped', strpos($csv, '"x;y"') !== false);
 
+echo "== Meal norms ==\n";
+check('main share 25%', abs(TabCalorieStore::mealShare(1, 25) - 0.25) < 0.001);
+check('snack share 1/12', abs(TabCalorieStore::mealShare(2, 25) - (1 / 12)) < 0.001);
+check('sum of shares = 1', abs(
+    TabCalorieStore::mealShare(1, 25) + TabCalorieStore::mealShare(2, 25) +
+    TabCalorieStore::mealShare(3, 25) + TabCalorieStore::mealShare(4, 25) +
+    TabCalorieStore::mealShare(5, 25) + TabCalorieStore::mealShare(6, 25) - 1) < 0.001);
+check('main carbs norm 30g', abs(TabCalorieStore::mealNorm(120, 1, 25) - 30) < 0.01);
+check('snack carbs norm 10g', abs(TabCalorieStore::mealNorm(120, 2, 25) - 10) < 0.01);
+check('main kcal norm 450', abs(TabCalorieStore::mealNorm(1800, 3, 25) - 450) < 0.01);
+check('norm zero when target off', TabCalorieStore::mealNorm(0, 1, 25) === 0.0);
+check('slot protein aggregated', abs($ov['slots'][1]['protein'] - 12.5) < 0.01);
+check('slot fat aggregated', abs($ov['slots'][3]['fat'] - 0.9) < 0.01);
+
 echo "== Chart ==\n";
 $url = TabCalorieChart::standardUrl(7);
 check('pChart url', strpos($url, 'pChart/?') === 0 && strpos($url, 'TabCalorie.Slot1Carbs') !== false);
