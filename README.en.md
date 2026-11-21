@@ -4,7 +4,7 @@ aliases: [TabCalorie, Home, Readme]
 tags: [tabcalorie, majordomo, docs]
 lang: en
 plugin: tabcalorie
-version: 1.4.1
+version: 1.4.2
 ---
 
 # TabCalorie
@@ -12,7 +12,7 @@ version: 1.4.1
 > [!NOTE]
 > A MajorDoMo plugin for local carbohydrate tracking based on data from the
 > "Calorie Table" app (TK / Dine4Fit / `tablycjakalorijnosti.com.ua`).
-> Default documentation language: Ukrainian. Version 1.4.1, 2026-11-20.
+> Default documentation language: Ukrainian. Version 1.4.2, 2026-11-21.
 
 [[README|Українська]] · [[README.en|English]] · [[README.ru|Русский]]
 

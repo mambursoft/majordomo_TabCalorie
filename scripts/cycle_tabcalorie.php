@@ -44,10 +44,29 @@ if ($lockFp) {
 $ctrlVar = 'cycle_tabcalorieControl';
 setGlobal($ctrlVar, '', 1);
 
+setGlobal('cycle_tabcalorieRun', time(), 1);
+setGlobal('cycle_tabcalorieRunTs', time());
+
 $module = new tabcalorie();
 echo date('H:i:s') . " [TabCalorie] cycle started\n";
 
 while (true) {
+    if (function_exists('isRebootRequired') && isRebootRequired()) {
+        echo date('H:i:s') . " [TabCalorie] Reboot required. Exiting.\n";
+        break;
+    }
+    if (defined('ROOT') && file_exists(ROOT . 'reboot')) {
+        echo date('H:i:s') . " [TabCalorie] Reboot flag found. Exiting.\n";
+        break;
+    }
+    if (isset($_GET['onetime'])) {
+        break;
+    }
+    if ((int)getGlobal('cycle_tabcalorieDisabled') === 1) {
+        echo date('H:i:s') . " [TabCalorie] Cycle disabled. Exiting.\n";
+        break;
+    }
+
     $didSync = false;
     $ctrl = (string)getGlobal($ctrlVar);
     if ($ctrl !== '') {
@@ -55,6 +74,9 @@ while (true) {
         if ($ctrl === 'sync_now') {
             $module->sync(null, true);
             $didSync = true;
+        } elseif ($ctrl === 'stop' || $ctrl === 'restart') {
+            echo date('H:i:s') . " [TabCalorie] Received control command: $ctrl. Exiting.\n";
+            break;
         }
     }
 
@@ -71,7 +93,12 @@ while (true) {
     }
 
     $module->checkHook();
-    setGlobal('cycle_tabcalorieRun', date('Y-m-d H:i:s'));
+    setGlobal('cycle_tabcalorieRun', time(), 1);
     setGlobal('cycle_tabcalorieRunTs', time());
     sleep(30);
+}
+
+if ($lockFp) {
+    @flock($lockFp, LOCK_UN);
+    @fclose($lockFp);
 }

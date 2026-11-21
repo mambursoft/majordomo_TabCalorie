@@ -149,6 +149,10 @@ check('status circuit open',
 setGlobal('cycle_tabcalorieRunTs', time() - 3600);
 check('status stale cycle',
     TabCalorieStore::computeStatus(array('SYNC_ENABLED' => 1, 'LAST_ERROR' => '', 'CIRCUIT_UNTIL' => 0)) === 0);
+setGlobal('cycle_tabcalorieRunTs', 0);
+setGlobal('cycle_tabcalorieRun', time());
+check('status healthy fallback to cycle_tabcalorieRun',
+    TabCalorieStore::computeStatus(array('SYNC_ENABLED' => 1, 'LAST_ERROR' => '', 'CIRCUIT_UNTIL' => 0)) === 1);
 setGlobal('cycle_tabcalorieRunTs', time());
 
 echo "== Property descriptions ==\n";

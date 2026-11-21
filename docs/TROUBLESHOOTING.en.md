@@ -4,14 +4,14 @@ aliases: [TabCalorie, TROUBLESHOOTING.en, Diagnostics]
 tags: [tabcalorie, majordomo, docs]
 lang: en
 plugin: tabcalorie
-version: 1.4.1
+version: 1.4.2
 ---
 
 # Troubleshooting TabCalorie
 
 [[TROUBLESHOOTING|Українська]] · [[TROUBLESHOOTING.en|English]] · [[TROUBLESHOOTING.ru|Русский]]
 
-Version 1.4.1 · 2026-11-20
+Version 1.4.2 · 2026-11-21
 
 This document helps diagnose common issues. Start with the **Diagnostics** tab
 and the **"Check connection"** button — it checks DNS/TLS/HTTP, login, cookies,

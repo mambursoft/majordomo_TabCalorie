@@ -857,6 +857,9 @@ class TabCalorieStore
             return 0;
         }
         $last = (int)getGlobal('cycle_tabcalorieRunTs');
+        if ($last <= 0) {
+            $last = (int)getGlobal('cycle_tabcalorieRun');
+        }
         if ($last <= 0 || time() - $last > 600) {
             return 0;
         }

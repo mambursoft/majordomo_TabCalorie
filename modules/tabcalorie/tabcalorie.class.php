@@ -13,7 +13,7 @@
  * @package tabcalorie
  * @author  mambursoft
  * @license MIT
- * @version 1.4.1
+ * @version 1.4.2
  */
 
 require_once(dirname(__FILE__) . '/lib/Api.php');
@@ -23,7 +23,7 @@ require_once(dirname(__FILE__) . '/lib/Chart.php');
 
 class tabcalorie extends module
 {
-    const VERSION = '1.4.1';
+    const VERSION = '1.4.2';
 
     /**
      * Localized module name. The admin menu is built from project_modules.TITLE

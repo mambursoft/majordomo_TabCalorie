@@ -4,7 +4,7 @@ aliases: [TabCalorie, HOME, MOC, Map of Content]
 tags: [tabcalorie, majordomo, docs]
 lang: uk
 plugin: tabcalorie
-version: 1.4.1
+version: 1.4.2
 ---
 
 # HOME — карта контенту TabCalorie

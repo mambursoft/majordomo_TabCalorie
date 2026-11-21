@@ -4,14 +4,14 @@ aliases: [TabCalorie, API.en, TK API]
 tags: [tabcalorie, majordomo, api]
 lang: en
 plugin: tabcalorie
-version: 1.4.1
+version: 1.4.2
 ---
 
 # TabCalorie API and data formats
 
 [[API|Українська]] · [[API.en|English]]
 
-Version 1.4.1 · 2026-11-20
+Version 1.4.2 · 2026-11-21
 
 This document records the technical facts about the "Calorie Table" (TK) API,
 Nightscout and the plugin's data formats. It is intended for developers and

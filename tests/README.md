@@ -4,13 +4,13 @@ aliases: [TabCalorie, tests/README, Тести]
 tags: [tabcalorie, majordomo, testing]
 lang: uk
 plugin: tabcalorie
-version: 1.4.1
+version: 1.4.2
 ---
 
 # Тести TabCalorie
 
 > [!NOTE]
-> Версія 1.4.1 · 2026-11-20. Тести не потребують реального облікового запису ТК
+> Версія 1.4.2 · 2026-11-21. Тести не потребують реального облікового запису ТК
 > і не роблять зовнішніх запитів.
 
 ## Юніт-тести

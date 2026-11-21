@@ -4,10 +4,26 @@ aliases: [TabCalorie, CHANGELOG, Журнал змін]
 tags: [tabcalorie, majordomo, docs]
 lang: uk
 plugin: tabcalorie
-version: 1.4.1
+version: 1.4.2
 ---
 
 # Журнал змін
+
+## [1.4.2] — 2026-11-21
+
+### Виправлено
+
+- **Аварійне завершення головного циклу MajorDoMo (`cycle.php`) на PHP 8.4**:
+  `scripts/cycle_tabcalorie.php` записував `cycle_tabcalorieRun` як форматований
+  рядок дати (`date('Y-m-d H:i:s')`), що через 30 секунд після старту системи призводило
+  до спрацьовування перевірки авто-відновлення `cycle.php` та фатальної помилки
+  `TypeError: date(): Argument #2 ($timestamp) must be of type ?int, string given`.
+  Змінено на цілочисельний Unix timestamp `time()` згідно з контрактом ядра MajorDoMo.
+- **Підтримка сигналів завершення та перезапуску циклу**:
+  У фоновий цикл додано перевірку `isRebootRequired()`, системного прапорця `ROOT . 'reboot'`,
+  `cycle_tabcalorieDisabled` та обробку команд `stop` / `restart` через `cycle_tabcalorieControl`.
+- **Сумісність `TabCalorieStore::computeStatus`**:
+  Додано резервне зчитування `cycle_tabcalorieRun`, якщо `cycle_tabcalorieRunTs` не задано.
 
 ## [1.4.1] — 2026-11-20
 
