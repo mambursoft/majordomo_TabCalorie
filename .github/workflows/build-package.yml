@@ -1,0 +1,30 @@
+name: Build install package
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build archive
+        run: |
+          mkdir -p dist
+          NAME=${GITHUB_REPOSITORY##*/}
+          REF=${GITHUB_REF_NAME//\//-}
+          tar --exclude=.git --exclude=.github --exclude=dist --exclude=tests --exclude='*.tgz' --exclude='*.tar.gz' -czf "dist/${NAME}-${REF}.tar.gz" .
+          zip -rq "dist/${NAME}-${REF}.zip" . -x '.git/*' '.github/*' 'dist/*' 'tests/*' '*.tgz' '*.tar.gz'
+          ls -lh dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: install-package
+          path: dist/*
+          if-no-files-found: error
