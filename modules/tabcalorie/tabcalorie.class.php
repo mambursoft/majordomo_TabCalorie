@@ -101,6 +101,7 @@ class tabcalorie extends module
             'WRITE_QUEUE_TTL_DAYS' => 7,
             'WRITEBACK_ENABLED' => 0,
             'WRITEBACK_CONFIRM' => 1,
+            'CGM_ENABLED'       => 1,
             'NS_ENABLED'        => 0,
             'NS_URL'            => '',
             'NS_API_SECRET'     => '',
@@ -728,6 +729,20 @@ EOD;
         }
         $html .= '</div>';
 
+        if ((int)$cfg['CGM_ENABLED'] === 1) {
+            $cgm = $this->cgmSnapshot();
+            $html .= '<div class="tc-panel"><div class="tc-panel-head">' . $this->e($this->tr('TC_CGM')) . '</div>' .
+                '<div class="tc-panel-body">';
+            if ($cgm['status'] === 'none') {
+                $html .= '<div class="tc-small">' . $this->e($this->tr('TC_CGM_NO_DATA')) . '</div>';
+            } else {
+                $html .= '<div class="tc-big">' . $cgm['value'] . ' <small>ммоль/л</small></div>' .
+                    '<div class="tc-small">' . $this->e($cgm['state']) . ' · ' . $this->e($cgm['direction']) .
+                    ' · ' . $this->e($this->tr('TC_CGM_FORECAST')) . ': ' . ($cgm['forecast'] > 0 ? $cgm['forecast'] : '—') . '</div>';
+            }
+            $html .= '</div></div>';
+        }
+
         if (!$hasNorms) {
             $html .= '<div class="tc-alert tc-err">' . $this->e($this->tr('TC_NORMS_HINT')) . '</div>';
         }
@@ -1140,6 +1155,64 @@ EOD;
         return $html;
     }
 
+    /** Read the last glucose value published by the CGM module. */
+    function cgmSnapshot()
+    {
+        $value = gg('CGM.value');
+        $direction = (string)gg('CGM.direction');
+        $state = (string)gg('CGM.status');
+        $ts = (int)gg('CGM.timestamp');
+        if ($value === '' || $value === false || $value === null || (float)$value <= 0) {
+            if (!function_exists('SQLTableExists') || !SQLTableExists('cgm_readings')) {
+                return array('status' => 'none');
+            }
+            $row = SQLSelectOne('SELECT TS,SGV,DIRECTION FROM cgm_readings ORDER BY TS DESC LIMIT 1');
+            if (empty($row['SGV'])) {
+                return array('status' => 'none');
+            }
+            $value = (float)$row['SGV'] / 18;
+            $ts = (int)$row['TS'];
+            $direction = isset($row['DIRECTION']) ? (string)$row['DIRECTION'] : '';
+            $state = $value < 4 ? 'low' : ($value > 10 ? 'high' : 'normal');
+        }
+        return array(
+            'status' => ($ts > 0 && time() - $ts > 1800) ? 'stale' : 'ok',
+            'value' => round((float)$value, 1),
+            'direction' => $direction,
+            'state' => $state,
+            'forecast' => round((float)gg('CGM.predicted30'), 1),
+            'timestamp' => $ts,
+        );
+    }
+
+    /** Read-only API used by CGM and other local modules. */
+    function api($params)
+    {
+        $op = isset($params['op']) ? $params['op'] : '';
+        $cfg = $this->configAll();
+        if ($op === 'cgm') {
+            return $this->cgmSnapshot();
+        }
+        if ($op === 'carbs' || $op === 'link') {
+            $ov = ((int)$cfg['DEMO_MODE'] === 1) ? $this->demoOverview() : TabCalorieStore::overview();
+            $carbs = array(
+                'status' => 'ok',
+                'date' => $ov['date'],
+                'carbs' => round((float)$ov['total_carbs'], 1),
+                'xe' => round((float)$ov['total_carbs'] / max(1, (float)$cfg['GRAMS_PER_XE']), 1),
+                'slots' => array(),
+            );
+            for ($i = 1; $i <= 6; $i++) {
+                $carbs['slots'][$i] = round((float)$ov['slots'][$i]['carbs'], 1);
+            }
+            if ($op === 'carbs') {
+                return $carbs;
+            }
+            return array('status' => 'ok', 'tabcalorie' => $carbs, 'cgm' => $this->cgmSnapshot());
+        }
+        return array('status' => 'error', 'msg' => 'Unknown op');
+    }
+
     function tabSettings($cfg)
     {
         $html = '<div class="tc-panel"><div class="tc-panel-head">' . $this->e($this->tr('TC_SETTINGS')) .
@@ -1194,6 +1267,7 @@ EOD;
             'HOOK_ENABLED' => $this->tr('TC_HOOK_ENABLED'),
             'WRITEBACK_ENABLED' => $this->tr('TC_WRITEBACK_ENABLED'),
             'WRITEBACK_CONFIRM' => $this->tr('TC_WRITEBACK_CONFIRM'),
+            'CGM_ENABLED' => $this->tr('TC_CGM_ENABLED'),
             'NS_ENABLED' => $this->tr('TC_NS_ENABLED'),
             'DEMO_MODE' => $this->tr('TC_DEMO_MODE'),
             'ACTIVITY_ENABLED' => $this->tr('TC_ACTIVITY_ENABLED'),
@@ -1281,7 +1355,7 @@ EOD;
             $cfg['CSV_DELIMITER'] = in_array($_POST['CSV_DELIMITER'], array(';', ',', "\t"), true) ? $_POST['CSV_DELIMITER'] : ';';
         }
         foreach (array('SYNC_ENABLED', 'HOOK_ENABLED', 'WRITEBACK_ENABLED', 'WRITEBACK_CONFIRM',
-            'NS_ENABLED', 'DEMO_MODE', 'ACTIVITY_ENABLED') as $k) {
+            'CGM_ENABLED', 'NS_ENABLED', 'DEMO_MODE', 'ACTIVITY_ENABLED') as $k) {
             $cfg[$k] = (isset($_POST[$k]) && $_POST[$k] === '1') ? 1 : 0;
         }
         if ($cfg['WRITEBACK_ENABLED'] && !$cfg['WRITEBACK_CONFIRM']) {
@@ -1640,6 +1714,8 @@ EOD;
         if ((int)$cfg['NS_ENABLED'] === 1) {
             $this->pushNightscoutDays($api, $ov, $cfg);
         }
+        setGlobal('TabCalorie.TotalCarbs', round((float)$ov['total_carbs'], 1));
+        setGlobal('TabCalorie.TotalXE', round((float)$ov['total_carbs'] / max(1, (float)$cfg['GRAMS_PER_XE']), 1));
         TabCalorieStore::log('sync', $errors ? 'partial' : 'ok', 0, $rows, 'days=' . $days . ' errors=' . $errors);
 
         @flock($fp, LOCK_UN);

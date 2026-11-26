@@ -306,3 +306,10 @@ slot from them instead of hardcoded values.
 
 See also [[TROUBLESHOOTING.en|Troubleshooting]] and
 [[API.en|API and data formats]] and [[HOME|HOME (MOC)]].
+
+## CGM compatibility
+
+- Enable CGM_ENABLED in settings (enabled by default).
+- The Overview tab shows the latest glucose value, state, direction and CGM forecast.
+- After sync the module publishes globals TabCalorie.TotalCarbs and TabCalorie.TotalXE consumed by CGM.
+- pi(op=link) returns daily carbs plus a CGM snapshot; pi(op=carbs) returns carbs only and pi(op=cgm) returns CGM only.

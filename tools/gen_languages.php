@@ -151,6 +151,10 @@ $strings = array(
     'TC_STEP5'              => array('Заповніть ГІ та нотатки у «Довіднику страв» (API ТК їх не надає).', 'Fill GI and notes in the food dictionary (TK API does not provide them).', 'Заполните ГИ и заметки в «Справочнике блюд» (API ТК их не предоставляет).'),
     'TC_STEP6'              => array('Експортуйте CSV або створіть типовий chart для контролю вуглеводів.', 'Export CSV or create a standard chart for carbohydrate control.', 'Экспортируйте CSV или создайте стандартный chart для контроля углеводов.'),
     'TC_DISCLAIMER'         => array('Плагін не є медичним пристроєм і не рекомендує дози інсуліну.', 'This plugin is not a medical device and does not recommend insulin doses.', 'Плагин не является медицинским устройством и не рекомендует дозы инсулина.'),
+    'TC_CGM_ENABLED'        => array('Показувати дані CGM', 'Show CGM data', 'Показывать данные CGM'),
+    'TC_CGM'                => array('Глюкоза (CGM)', 'Glucose (CGM)', 'Глюкоза (CGM)'),
+    'TC_CGM_NO_DATA'        => array('Немає даних CGM', 'No CGM data', 'Нет данных CGM'),
+    'TC_CGM_FORECAST'       => array('Прогноз на 30 хв', '30-minute forecast', 'Прогноз на 30 мин'),
 );
 
 $langs = array('uk' => 0, 'ua' => 0, 'en' => 1, 'ru' => 2);
